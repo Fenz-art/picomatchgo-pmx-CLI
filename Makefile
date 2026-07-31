@@ -1,0 +1,20 @@
+.PHONY: fmt vet test cover bench fuzz
+
+fmt:
+	go fmt ./...
+
+vet:
+	go vet ./...
+
+test:
+	go test -v ./...
+
+cover:
+	go test -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
+
+bench:
+	go test -bench=. -benchmem ./...
+
+fuzz:
+	go test -fuzz=Fuzz -fuzztime=30s ./...
