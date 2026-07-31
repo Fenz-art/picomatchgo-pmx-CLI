@@ -1,0 +1,17 @@
+[hackathon]
+name = "Port Mortem 2026"
+track = "Track F"
+track_name = "JavaScript -> Go (Runtime Modernization)"
+
+[project]
+name = "picomatch-go"
+description = "High-performance, pure Go port of micromatch/picomatch with zero external dependencies and 100% test parity."
+source_repo = "https://github.com/micromatch/picomatch"
+target_repo = "https://github.com/debayansamal/port-mortem-picomatch-go"
+source_language = "javascript"
+target_language = "go"
+
+[features]
+zero_dependencies = true
+test_parity = true
+differential_fuzzer = true
