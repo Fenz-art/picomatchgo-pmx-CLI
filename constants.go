@@ -55,6 +55,7 @@ const (
 
 	MAX_LENGTH                    = 1024 * 64
 	DEFAULT_MAX_EXTGLOB_RECURSION = 0
+	Version                       = "1.0.0"
 )
 
 // Posix glob regex fragments
