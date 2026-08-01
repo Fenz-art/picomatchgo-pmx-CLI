@@ -2,6 +2,7 @@ package picomatch
 
 import (
 	"math"
+	"github.com/debayansamal/port-mortem-picomatch-go/options"
 )
 
 // ScanToken represents a single path segment token produced during glob scanning.
@@ -74,9 +75,9 @@ func charAt(s string, i int) byte {
 // brackets, extglobs, globstars, negation, and optionally tokens and parts.
 //
 // This is a faithful port of lib/scan.js from micromatch/picomatch.
-func Scan(input string, opts *Options) ScanState {
+func Scan(input string, opts *options.Options) ScanState {
 	if opts == nil {
-		opts = &Options{}
+		opts = &options.Options{}
 	}
 
 	length := len(input) - 1
