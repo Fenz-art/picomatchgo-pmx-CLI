@@ -168,12 +168,12 @@ func TestEscapeLast(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		char    byte
+		char    string
 		lastIdx int
 		want    string
 	}{
-		{"escape last paren", "foo(bar)", ')', -1, `foo(bar\)`},
-		{"no match", "foobar", ')', -1, "foobar"},
+		{"escape last paren", "foo(bar)", ")", -1, `foo(bar\)`},
+		{"no match", "foobar", ")", -1, "foobar"},
 	}
 
 	for _, tc := range tests {
