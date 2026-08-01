@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestRootMakeReAndIsMatch(t *testing.T) {
+func TestMakeReAndIsMatch(t *testing.T) {
 	regex, err := MakeRe("*.js", nil)
 	if err != nil {
 		t.Fatalf("MakeRe failed: %v", err)
@@ -17,12 +17,145 @@ func TestRootMakeReAndIsMatch(t *testing.T) {
 	}
 }
 
-func TestRootIsMatchArray(t *testing.T) {
+func TestIsMatchArray(t *testing.T) {
 	ok, err := IsMatch("a.a", []string{"b.*", "*.a"}, nil)
 	if err != nil {
 		t.Fatalf("IsMatch failed: %v", err)
 	}
 	if !ok {
 		t.Fatal("expected a.a to match patterns")
+	}
+}
+
+func TestIsMatch_Basic(t *testing.T) {
+	tests := []struct {
+		pattern string
+		input   string
+		want    bool
+	}{
+		{"*.js", "foo.js", true},
+		{"*.js", "foo.txt", false},
+		{"foo/*", "foo/bar", true},
+		{"foo/*", "foo/bar/baz", false},
+		{"a/*/c", "a/b/c", true},
+		{"a/*/c", "a/b/d/c", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
+			got, err := IsMatch(tc.input, tc.pattern, nil)
+			if err != nil {
+				t.Fatalf("IsMatch failed: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("IsMatch(%q, %q) = %v, want %v", tc.input, tc.pattern, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsMatch_Nocase(t *testing.T) {
+	opts := &Options{Nocase: true}
+
+	tests := []struct {
+		pattern string
+		input   string
+		want    bool
+	}{
+		{"*.js", "FOO.JS", true},
+		{"*.JS", "foo.js", true},
+		{"FOO/*", "foo/BAR", true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
+			got, err := IsMatch(tc.input, tc.pattern, opts)
+			if err != nil {
+				t.Fatalf("IsMatch failed: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("IsMatch(%q, %q, Nocase) = %v, want %v", tc.input, tc.pattern, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsMatch_Dot(t *testing.T) {
+	optsWithDot := &Options{Dot: true}
+	optsNoDot := &Options{Dot: false}
+
+	tests := []struct {
+		pattern string
+		input   string
+		opts    *Options
+		want    bool
+	}{
+		{"*.js", ".foo.js", optsNoDot, false},
+		{"*.js", ".foo.js", optsWithDot, true},
+		{"foo/*", "foo/.bar", optsNoDot, false},
+		{"foo/*", "foo/.bar", optsWithDot, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
+			got, err := IsMatch(tc.input, tc.pattern, tc.opts)
+			if err != nil {
+				t.Fatalf("IsMatch failed: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("IsMatch(%q, %q) = %v, want %v", tc.input, tc.pattern, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsMatch_Negation(t *testing.T) {
+	tests := []struct {
+		pattern string
+		input   string
+		want    bool
+	}{
+		{"!*.js", "foo.txt", true},
+		{"!*.js", "foo.js", false},
+		{"!foo/*", "bar/baz", true},
+		{"!foo/*", "foo/bar", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
+			got, err := IsMatch(tc.input, tc.pattern, nil)
+			if err != nil {
+				t.Fatalf("IsMatch failed: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("IsMatch(%q, %q) = %v, want %v", tc.input, tc.pattern, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsMatch_MatchBase(t *testing.T) {
+	opts := &Options{MatchBase: true}
+
+	tests := []struct {
+		pattern string
+		input   string
+		want    bool
+	}{
+		{"*.js", "foo/bar/baz.js", true},
+		{"*.js", "foo/bar/baz.txt", false},
+		{"a/*.js", "foo/bar/a/baz.js", false}, // matchBase applies only when pattern does not contain a slash
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
+			got, err := IsMatch(tc.input, tc.pattern, opts)
+			if err != nil {
+				t.Fatalf("IsMatch failed: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("IsMatch(%q, %q, MatchBase) = %v, want %v", tc.input, tc.pattern, got, tc.want)
+			}
+		})
 	}
 }
