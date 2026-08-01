@@ -73,3 +73,10 @@ func TestExtglobChars(t *testing.T) {
 		}
 	}
 }
+
+func TestVersion(t *testing.T) {
+	if Version != "1.0.0" {
+		t.Errorf("Expected Version '1.0.0', got %q", Version)
+	}
+}
+
