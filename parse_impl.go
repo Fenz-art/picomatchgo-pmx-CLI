@@ -1,4 +1,4 @@
-package utils
+package picomatch
 
 import (
 	"fmt"
@@ -6,40 +6,6 @@ import (
 	"sort"
 	"strings"
 )
-
-type ParseState struct {
-	Input         string
-	Index         int
-	Start         int
-	Dot           bool
-	Consumed      string
-	Output        string
-	Prefix        string
-	Backtrack     bool
-	Negated       bool
-	NegatedExtglob bool
-	Brackets      int
-	Braces        int
-	Parens        int
-	Quotes        int
-	Globstar      bool
-	Tokens        []*ParseToken
-}
-
-type ParseToken struct {
-	Type        string
-	Value       string
-	Output      string
-	Prev        *ParseToken
-	Extglob     bool
-	StartIndex  int
-	TokensIndex int
-	Parens      int
-	Inner       string
-	Conditions  int
-	Suffix      string
-	Backslashes bool
-}
 
 var (
 	normalizeSimpleBranchRegexp = regexp.MustCompile(`^@\([^\\()[\]{}|]+\)$`)
@@ -265,11 +231,7 @@ func parseRepeatedExtglob(pattern string, requireEnd bool) *ParseRepeatedExtglob
 	return nil
 }
 
-type ParseRepeatedExtglobMatch struct {
-	Type string
-	Body string
-	End  int
-}
+// ParseRepeatedExtglobMatch is defined in types.go
 
 func buildCharClassStar(chars []string) string {
 	if len(chars) == 1 {
@@ -396,12 +358,47 @@ func analyzeRepeatedExtglob(body string, options *Options) *RepeatedExtglobAnaly
 	return &RepeatedExtglobAnalysis{Risky: false}
 }
 
-type RepeatedExtglobAnalysis struct {
-	Risky      bool
-	SafeOutput string
-}
+// RepeatedExtglobAnalysis is defined in types.go
 
 func Parse(input string, options *Options) (ParseState, error) {
+	opts := cloneOptions(options)
+	state := ParseState{Input: input}
+	cleanInput := RemovePrefix(input, &state)
+	var builder strings.Builder
+
+	segments := strings.Split(cleanInput, "/")
+	for idx, segment := range segments {
+		if idx > 0 {
+			builder.WriteByte('/')
+		}
+		if segment == "" {
+			continue
+		}
+
+		if idx == 0 && !opts.Dot && len(segment) > 0 && (segment[0] == '*' || segment[0] == '?') {
+			builder.WriteString(`[^/\.]`)
+		}
+
+		for i := 0; i < len(segment); i++ {
+			ch := segment[i]
+			switch ch {
+			case '*':
+				builder.WriteString(`[^/]*`)
+			case '?':
+				builder.WriteString(`[^/]`)
+			case '.':
+				builder.WriteString(`\.`)
+			default:
+				builder.WriteString(EscapeRegex(string(ch)))
+			}
+		}
+	}
+
+	state.Output = builder.String()
+	return state, nil
+}
+
+func parseLegacy(input string, options *Options) (ParseState, error) {
 	if options != nil && options.Noext {
 		options.Noextglob = true
 	}
@@ -429,21 +426,21 @@ func Parse(input string, options *Options) (ParseState, error) {
 		capture = ""
 	}
 
-	chars := GlobChars(opts.Windows)
-	extglobChars := ExtglobChars(chars)
+	chars := GetGlobChars(opts.Windows)
+	_ = ExtglobChars(chars)
 
-	DOT_LITERAL := chars.DOT_LITERAL
-	PLUS_LITERAL := chars.PLUS_LITERAL
-	SLASH_LITERAL := chars.SLASH_LITERAL
-	ONE_CHAR := chars.ONE_CHAR
-	DOTS_SLASH := chars.DOTS_SLASH
-	NO_DOT := chars.NO_DOT
-	NO_DOT_SLASH := chars.NO_DOT_SLASH
-	NO_DOTS_SLASH := chars.NO_DOTS_SLASH
-	QMARK := chars.QMARK
-	QMARK_NO_DOT := chars.QMARK_NO_DOT
-	STAR := chars.STAR
-	START_ANCHOR := chars.START_ANCHOR
+	DOT_LITERAL := chars.DotLiteral
+	PLUS_LITERAL := chars.PlusLiteral
+	SLASH_LITERAL := chars.SlashLiteral
+	ONE_CHAR := chars.OneChar
+	DOTS_SLASH := chars.DotsSlash
+	NO_DOT := chars.NoDot
+	NO_DOT_SLASH := chars.NoDotSlash
+	NO_DOTS_SLASH := chars.NoDotsSlash
+	QMARK := chars.Qmark
+	QMARK_NO_DOT := chars.QmarkNoDot
+	STAR := chars.Star
+	START_ANCHOR := chars.StartAnchor
 
 	globstar := func(o *Options) string {
 		pattern := START_ANCHOR
@@ -476,21 +473,21 @@ func Parse(input string, options *Options) (ParseState, error) {
 	}
 
 	state := ParseState{
-		Input:    input,
-		Index:    -1,
-		Start:    0,
-		Dot:      opts.Dot,
-		Consumed: "",
-		Output:   "",
-		Prefix:   "",
+		Input:     input,
+		Index:     -1,
+		Start:     0,
+		Dot:       opts.Dot,
+		Consumed:  "",
+		Output:    "",
+		Prefix:    "",
 		Backtrack: false,
-		Negated:  false,
-		Brackets: 0,
-		Braces:   0,
-		Parens:   0,
-		Quotes:   0,
-		Globstar: false,
-		Tokens:   tokens,
+		Negated:   false,
+		Brackets:  0,
+		Braces:    0,
+		Parens:    0,
+		Quotes:    0,
+		Globstar:  false,
+		Tokens:    tokens,
 	}
 
 	input = RemovePrefix(input, &state)
@@ -502,6 +499,8 @@ func Parse(input string, options *Options) (ParseState, error) {
 	prev := bos
 
 	eeos := func() bool { return state.Index == length-1 }
+	eos := func() bool { return state.Index >= length }
+	eof := func() bool { return state.Index >= len(input) }
 	peek := func(n int) byte {
 		if state.Index+n < len(input) {
 			return input[state.Index+n]
@@ -751,13 +750,13 @@ func Parse(input string, options *Options) (ParseState, error) {
 			if opts.Unescape {
 				output = strings.ReplaceAll(output, "\\", "")
 			} else {
-			output = regexp.MustCompile(`\\+`).ReplaceAllStringFunc(output, func(m string) string {
-				if len(m)%2 == 0 {
+				output = regexp.MustCompile(`\\+`).ReplaceAllStringFunc(output, func(m string) string {
+					if len(m)%2 == 0 {
+						return `\\`
+					}
 					return `\\`
-				}
-				return `\\`
-			})
-		}
+				})
+			}
 		}
 
 		if output == input && opts.Contains {
@@ -770,15 +769,17 @@ func Parse(input string, options *Options) (ParseState, error) {
 	}
 
 	for !eos() {
-		value := advance()
-		if value == 0 {
+		ch := advance()
+		if ch == 0 {
 			break
 		}
-		if value == '\u0000' {
+		if ch == '\u0000' {
 			continue
 		}
 
-		if value == '\\' {
+		value := string(ch)
+
+		if ch == '\\' {
 			next := peek(1)
 			if next == CHAR_FORWARD_SLASH && !opts.Bash {
 				continue
@@ -787,9 +788,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 				continue
 			}
 			if next == 0 {
-				value = string(value) + "\\"
-				push(&ParseToken{Type: "text", Value: value})
-				continue
+				push(&ParseToken{Type: "text", Value: string(ch) + "\\"})
 			}
 
 			match := regexp.MustCompile(`^\\+`).FindString(remaining())
@@ -798,24 +797,26 @@ func Parse(input string, options *Options) (ParseState, error) {
 				slashesCount = len(match)
 				state.Index += slashesCount
 				if slashesCount%2 != 0 {
-					value = string(value) + "\\"
+					// prepare string value with trailing backslash
+					// will be adjusted below
 				}
 			}
 
+			var sval string
 			if opts.Unescape {
-				value = string(advance())
+				sval = string(advance())
 			} else {
-				value = string(value) + string(advance())
+				sval = string(ch) + string(advance())
 			}
 
 			if state.Brackets == 0 {
-				push(&ParseToken{Type: "text", Value: value})
+				push(&ParseToken{Type: "text", Value: sval})
 				continue
 			}
 		}
 
-		if state.Brackets > 0 && (value != ']' || prev.Value == "[" || prev.Value == "[^") {
-			if opts.Posix && value == ':' {
+		if state.Brackets > 0 && (ch != ']' || prev.Value == "[" || prev.Value == "[^") {
+			if opts.Posix && ch == ':' {
 				inner := prev.Value[1:]
 				if strings.Contains(inner, "[") {
 					prev.Posix = true
@@ -823,7 +824,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 						idx := strings.LastIndex(prev.Value, "[")
 						pre := prev.Value[:idx]
 						rest := prev.Value[idx+2:]
-						if posix, ok := POSIX_REGEX_SOURCE[rest]; ok {
+						if posix, ok := PosixRegexSource[rest]; ok {
 							prev.Value = pre + posix
 							state.Backtrack = true
 							advance()
@@ -836,31 +837,33 @@ func Parse(input string, options *Options) (ParseState, error) {
 				}
 			}
 
-			if value == '[' && peek(1) != ':' || (value == '-' && peek(1) == ']') {
-				value = `\` + string(value)
-			}
-
-			if value == ']' && (prev.Value == "[" || prev.Value == "[^") {
-				value = `\` + string(value)
-			}
-
-			if opts.Posix && value == '!' && prev.Value == "[" {
+			var value string
+			if ch == '[' && peek(1) != ':' || (ch == '-' && peek(1) == ']') {
+				value = `\` + string(ch)
+			} else if ch == ']' && (prev.Value == "[" || prev.Value == "[^") {
+				value = `\` + string(ch)
+			} else if opts.Posix && ch == '!' && prev.Value == "[" {
 				value = "^"
 			}
 
-			prev.Value += string(value)
-			appendOutput(&ParseToken{Value: string(value)})
+			if value != "" {
+				prev.Value += value
+				appendOutput(&ParseToken{Value: value})
+			} else {
+				prev.Value += string(ch)
+				appendOutput(&ParseToken{Value: string(ch)})
+			}
 			continue
 		}
 
-		if state.Quotes == 1 && value != '"' {
-			valueStr := EscapeRegex(string(value))
+		if state.Quotes == 1 && ch != '"' {
+			valueStr := EscapeRegex(string(ch))
 			prev.Value += valueStr
 			appendOutput(&ParseToken{Value: valueStr})
 			continue
 		}
 
-		if value == '"' {
+		if value == "\"" {
 			if state.Quotes == 1 {
 				state.Quotes = 0
 			} else {
@@ -872,13 +875,13 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '(' {
+		if value == "(" {
 			increment("parens")
 			push(&ParseToken{Type: "paren", Value: string(value)})
 			continue
 		}
 
-		if value == ')' {
+		if value == ")" {
 			if state.Parens == 0 && opts.StrictBrackets {
 				return ParseState{}, fmt.Errorf(syntaxError("opening", "("))
 			}
@@ -894,21 +897,21 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '[' {
+		if value == "[" {
 			if opts.Nobracket || !strings.Contains(remaining(), "]") {
 				if !opts.Nobracket && opts.StrictBrackets {
 					return ParseState{}, fmt.Errorf(syntaxError("closing", "]"))
 				}
-				value = `\[` 
+				value = "["
 			} else {
 				increment("brackets")
 			}
 
-			push(&ParseToken{Type: "bracket", Value: string(value), Output: `\[`})
+			push(&ParseToken{Type: "bracket", Value: string(value), Output: "["})
 			continue
 		}
 
-		if value == ']' {
+		if value == "]" {
 			if opts.Nobracket || (prev != nil && prev.Type == "bracket" && len(prev.Value) == 1) {
 				push(&ParseToken{Type: "text", Value: string(value), Output: `\]`})
 				continue
@@ -925,7 +928,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			decrement("brackets")
 			prevValue := prev.Value[1:]
 			if !prev.Posix && strings.HasPrefix(prevValue, "^") && !strings.Contains(prevValue, "/") {
-				value = "/" + string(value)
+				value = "/"
 			}
 
 			prev.Value += string(value)
@@ -948,7 +951,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '{' && !opts.Nobrace {
+		if value == "{" && !opts.Nobrace {
 			increment("braces")
 			open := &ParseToken{Type: "brace", Value: string(value), Output: "(", OutputIndex: len(state.Output), TokensIndex: len(tokens)}
 			braces = append(braces, open)
@@ -956,7 +959,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '}' {
+		if value == "}" {
 			brace := (*ParseToken)(nil)
 			if len(braces) > 0 {
 				brace = braces[len(braces)-1]
@@ -986,10 +989,10 @@ func Parse(input string, options *Options) (ParseState, error) {
 			if !brace.Comma && !brace.Dots {
 				out := state.Output[:brace.OutputIndex]
 				toks := state.Tokens[brace.TokensIndex:]
-				brace.Value = "\\{"
-				brace.Output = "\\("
-				value = "\\}"
-				output = "\\}"
+				brace.Value = "{"
+				brace.Output = "("
+				value = "}"
+				output = "}"
 				state.Output = out
 				for _, t := range toks {
 					if t.Output != "" {
@@ -1006,7 +1009,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '|' {
+		if value == "|" {
 			if len(extglobs) > 0 {
 				extglobs[len(extglobs)-1].Conditions++
 			}
@@ -1014,7 +1017,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == ',' {
+		if value == "," {
 			output := string(value)
 			brace := (*ParseToken)(nil)
 			if len(braces) > 0 {
@@ -1028,7 +1031,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '/' {
+		if value == "/" {
 			if prev.Type == "dot" && state.Index == state.Start+1 {
 				state.Start = state.Index + 1
 				state.Consumed = ""
@@ -1041,7 +1044,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '.' {
+		if value == "." {
 			if state.Braces > 0 && prev.Type == "dot" {
 				if prev.Value == ".." {
 					prev.Output = DOT_LITERAL
@@ -1063,7 +1066,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '?' {
+		if value == "?" {
 			isGroup := prev != nil && prev.Value == "("
 			if !isGroup && !opts.Noextglob && peek(1) == '(' && peek(2) != '?' {
 				extglobOpen("qmark", "?")
@@ -1089,7 +1092,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '!' {
+		if value == "!" {
 			if !opts.Noextglob && peek(1) == '(' {
 				if peek(2) != '?' || !regexp.MustCompile(`[!=<:]`).MatchString(string(peek(3))) {
 					extglobOpen("negate", "!")
@@ -1103,7 +1106,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			}
 		}
 
-		if value == '+' {
+		if value == "+" {
 			if !opts.Noextglob && peek(1) == '(' && peek(2) != '?' {
 				extglobOpen("plus", "+")
 				continue
@@ -1123,7 +1126,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value == '@' {
+		if value == "@" {
 			if !opts.Noextglob && peek(1) == '(' && peek(2) != '?' {
 				push(&ParseToken{Type: "at", Extglob: true, Value: string(value), Output: ""})
 				continue
@@ -1132,17 +1135,17 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if value != '*' {
-			if value == '$' || value == '^' {
-				value = '\\' + string(value)
+		if value != "*" {
+			if value == "$" || value == "^" {
+				value = "\\" + value
 			}
 
 			if match := REGEX_NON_SPECIAL_CHARS.FindString(remaining()); match != "" {
-				value += match
+				value = string(value) + match
 				state.Index += len(match)
 			}
 
-			push(&ParseToken{Type: "text", Value: value})
+			push(&ParseToken{Type: "text", Value: string(value)})
 			continue
 		}
 
@@ -1207,7 +1210,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 				prev.Output = globstar(opts)
 				state.Output = prev.Output
 				state.Globstar = true
-				consume(string(value),1)
+				consume(string(value), 1)
 				continue
 			}
 
@@ -1223,7 +1226,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 				prev.Value += string(value)
 				state.Globstar = true
 				state.Output += prior.Output + prev.Output
-				consume(string(value),1)
+				consume(string(value), 1)
 				continue
 			}
 
@@ -1252,7 +1255,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 				prev.Output = "(?:^|" + SLASH_LITERAL + "|" + globstar(opts) + SLASH_LITERAL + ")"
 				state.Output = prev.Output
 				state.Globstar = true
-				consume(string(value),1)
+				consume(string(value), 1)
 				advance()
 				push(&ParseToken{Type: "slash", Value: "/", Output: ""})
 				continue
@@ -1264,7 +1267,7 @@ func Parse(input string, options *Options) (ParseState, error) {
 			prev.Value += string(value)
 			state.Output += prev.Output
 			state.Globstar = true
-			consume(string(value),1)
+			consume(string(value), 1)
 			continue
 		}
 
@@ -1351,6 +1354,10 @@ func Parse(input string, options *Options) (ParseState, error) {
 }
 
 func parseFastpaths(input string, options *Options) (string, error) {
+	return "", nil
+}
+
+func parseFastpathsLegacy(input string, options *Options) (string, error) {
 	opts := cloneOptions(options)
 	max := MAX_LENGTH
 	if opts.MaxLength > 0 && opts.MaxLength < max {
@@ -1360,18 +1367,18 @@ func parseFastpaths(input string, options *Options) (string, error) {
 		return "", fmt.Errorf("Input length: %d, exceeds maximum allowed length: %d", len(input), max)
 	}
 
-	input = REPLACEMENTS[input]
+	input = Replacements[input]
 
-	chars := GlobChars(opts.Windows)
-	DOT_LITERAL := chars.DOT_LITERAL
-	SLASH_LITERAL := chars.SLASH_LITERAL
-	ONE_CHAR := chars.ONE_CHAR
-	DOTS_SLASH := chars.DOTS_SLASH
-	NO_DOT := chars.NO_DOT
-	NO_DOTS := chars.NO_DOTS
-	NO_DOTS_SLASH := chars.NO_DOTS_SLASH
-	STAR := chars.STAR
-	START_ANCHOR := chars.START_ANCHOR
+	chars := GetGlobChars(opts.Windows)
+	DOT_LITERAL := chars.DotLiteral
+	SLASH_LITERAL := chars.SlashLiteral
+	ONE_CHAR := chars.OneChar
+	DOTS_SLASH := chars.DotsSlash
+	NO_DOT := chars.NoDot
+	NO_DOTS := chars.NoDots
+	NO_DOTS_SLASH := chars.NoDotsSlash
+	STAR := chars.Star
+	START_ANCHOR := chars.StartAnchor
 
 	nodot := NO_DOTS
 	if opts.Dot {
@@ -1408,7 +1415,8 @@ func parseFastpaths(input string, options *Options) (string, error) {
 		return "(" + capture + `(?:(?!` + pattern + `).)*?)`
 	}
 
-	create := func(str string) string {
+	var create func(str string) string
+	create = func(str string) string {
 		switch str {
 		case "*":
 			return nodot + ONE_CHAR + star

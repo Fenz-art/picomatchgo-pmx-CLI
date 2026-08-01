@@ -3,7 +3,6 @@ package picomatch
 import (
 	"reflect"
 	"testing"
-	"github.com/debayansamal/port-mortem-picomatch-go/options"
 )
 
 func TestScan_Both(t *testing.T) {
@@ -168,7 +167,7 @@ func TestScan_Scan(t *testing.T) {
 	tests := []struct {
 		name     string
 		pattern  string
-		opts     *options.Options
+		opts     *Options
 		expected ScanState
 	}{
 		{
@@ -183,7 +182,7 @@ func TestScan_Scan(t *testing.T) {
 		{
 			name:    "should detect braces",
 			pattern: "foo/{a,b,c}/*.js",
-			opts:    &options.Options{ScanToEnd: true},
+			opts:    &Options{ScanToEnd: true},
 			expected: ScanState{
 				Input: "foo/{a,b,c}/*.js", Prefix: "", Start: 0, Base: "foo", Glob: "{a,b,c}/*.js",
 				IsBrace: true, IsBracket: false, IsGlob: true, IsGlobstar: false,
@@ -193,7 +192,7 @@ func TestScan_Scan(t *testing.T) {
 		{
 			name:    "should detect globstars",
 			pattern: "./foo/**/*.js",
-			opts:    &options.Options{ScanToEnd: true},
+			opts:    &Options{ScanToEnd: true},
 			expected: ScanState{
 				Input: "./foo/**/*.js", Prefix: "./", Start: 2, Base: "foo", Glob: "**/*.js",
 				IsBrace: false, IsBracket: false, IsGlob: true, IsGlobstar: true,
@@ -212,7 +211,7 @@ func TestScan_Scan(t *testing.T) {
 		{
 			name:    "should detect extglobs and globstars",
 			pattern: "./foo/@(bar)/**/*.js",
-			opts:    &options.Options{Parts: true},
+			opts:    &Options{Parts: true},
 			expected: ScanState{
 				Input: "./foo/@(bar)/**/*.js", Prefix: "./", Start: 2, Base: "foo", Glob: "@(bar)/**/*.js",
 				IsBrace: false, IsBracket: false, IsGlob: true, IsGlobstar: true,
@@ -348,7 +347,7 @@ func TestScan_Scan(t *testing.T) {
 func TestScan_Base(t *testing.T) {
 	tests := []struct {
 		pattern string
-		opts    *options.Options
+		opts    *Options
 		base    string
 	}{
 		{"./(a|b)", nil, ""},
@@ -456,26 +455,26 @@ func TestScan_Base(t *testing.T) {
 		{"/{a,b}/", nil, "/"},
 		{"js/test{0..9}/*.js", nil, "js"},
 
-		{"path/{,/,bar/baz,qux}/", &options.Options{Unescape: true}, "path"},
-		{"path/\\{,/,bar/baz,qux}/", &options.Options{Unescape: true}, "path/{,/,bar/baz,qux}/"},
-		{"path/\\{,/,bar/baz,qux\\}/", &options.Options{Unescape: true}, "path/{,/,bar/baz,qux}/"},
-		{"/{,/,bar/baz,qux}/", &options.Options{Unescape: true}, "/"},
-		{"/\\{,/,bar/baz,qux}/", &options.Options{Unescape: true}, "/{,/,bar/baz,qux}/"},
-		{"{,/,bar/baz,qux}", &options.Options{Unescape: true}, ""},
-		{"\\{,/,bar/baz,qux\\}", &options.Options{Unescape: true}, "{,/,bar/baz,qux}"},
-		{"\\{,/,bar/baz,qux}/", &options.Options{Unescape: true}, "{,/,bar/baz,qux}/"},
+		{"path/{,/,bar/baz,qux}/", &Options{Unescape: true}, "path"},
+		{"path/\\{,/,bar/baz,qux}/", &Options{Unescape: true}, "path/{,/,bar/baz,qux}/"},
+		{"path/\\{,/,bar/baz,qux\\}/", &Options{Unescape: true}, "path/{,/,bar/baz,qux}/"},
+		{"/{,/,bar/baz,qux}/", &Options{Unescape: true}, "/"},
+		{"/\\{,/,bar/baz,qux}/", &Options{Unescape: true}, "/{,/,bar/baz,qux}/"},
+		{"{,/,bar/baz,qux}", &Options{Unescape: true}, ""},
+		{"\\{,/,bar/baz,qux\\}", &Options{Unescape: true}, "{,/,bar/baz,qux}"},
+		{"\\{,/,bar/baz,qux}/", &Options{Unescape: true}, "{,/,bar/baz,qux}/"},
 
-		{"\\{../,./,\\{bar,/baz},qux}", &options.Options{Unescape: true}, "{../,./,{bar,/baz},qux}"},
-		{"\\{../,./,\\{bar,/baz},qux}/", &options.Options{Unescape: true}, "{../,./,{bar,/baz},qux}/"},
-		{"path/\\{,/,bar/{baz,qux}}/", &options.Options{Unescape: true}, "path/{,/,bar/{baz,qux}}/"},
-		{"path/\\{../,./,\\{bar,/baz},qux}/", &options.Options{Unescape: true}, "path/{../,./,{bar,/baz},qux}/"},
-		{"path/\\{../,./,{bar,/baz},qux}/", &options.Options{Unescape: true}, "path/{../,./,{bar,/baz},qux}/"},
-		{"path/{,/,bar/\\{baz,qux}}/", &options.Options{Unescape: true}, "path"},
+		{"\\{../,./,\\{bar,/baz},qux}", &Options{Unescape: true}, "{../,./,{bar,/baz},qux}"},
+		{"\\{../,./,\\{bar,/baz},qux}/", &Options{Unescape: true}, "{../,./,{bar,/baz},qux}/"},
+		{"path/\\{,/,bar/{baz,qux}}/", &Options{Unescape: true}, "path/{,/,bar/{baz,qux}}/"},
+		{"path/\\{../,./,\\{bar,/baz},qux}/", &Options{Unescape: true}, "path/{../,./,{bar,/baz},qux}/"},
+		{"path/\\{../,./,{bar,/baz},qux}/", &Options{Unescape: true}, "path/{../,./,{bar,/baz},qux}/"},
+		{"path/{,/,bar/\\{baz,qux}}/", &Options{Unescape: true}, "path"},
 
-		{"\\{foo,bar\\}", &options.Options{Unescape: true}, "{foo,bar}"},
-		{"\\{foo,bar\\}/", &options.Options{Unescape: true}, "{foo,bar}/"},
-		{"\\{foo,bar}/", &options.Options{Unescape: true}, "{foo,bar}/"},
-		{"path/\\{foo,bar}/", &options.Options{Unescape: true}, "path/{foo,bar}/"},
+		{"\\{foo,bar\\}", &Options{Unescape: true}, "{foo,bar}"},
+		{"\\{foo,bar\\}/", &Options{Unescape: true}, "{foo,bar}/"},
+		{"\\{foo,bar}/", &Options{Unescape: true}, "{foo,bar}/"},
+		{"path/\\{foo,bar}/", &Options{Unescape: true}, "path/{foo,bar}/"},
 
 		{"one/{foo,bar}/**/{baz,qux}/*.txt", nil, "one"},
 		{"two/baz/**/{abc,xyz}/*.js", nil, "two/baz"},
@@ -521,7 +520,7 @@ func TestScan_Parts(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.pattern, func(t *testing.T) {
-			state := Scan(tc.pattern, &options.Options{Parts: true})
+			state := Scan(tc.pattern, &Options{Parts: true})
 			if !reflect.DeepEqual(state.Parts, tc.parts) {
 				t.Errorf("Expected Parts %v, got %v", tc.parts, state.Parts)
 			}

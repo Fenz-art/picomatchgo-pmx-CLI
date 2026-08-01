@@ -1,38 +1,6 @@
-package utils
+package picomatch
 
-import "strings"
-
-type ScanToken struct {
-	Value       string
-	Depth       int
-	IsGlob      bool
-	IsPrefix    bool
-	Backslashes bool
-	IsBrace     bool
-	IsBracket   bool
-	IsExtglob   bool
-	IsGlobstar  bool
-	Negated     bool
-}
-
-type ScanState struct {
-	Prefix        string
-	Input         string
-	Start         int
-	Base          string
-	Glob          string
-	IsBrace       bool
-	IsBracket     bool
-	IsGlob        bool
-	IsExtglob     bool
-	IsGlobstar    bool
-	Negated       bool
-	NegatedExtglob bool
-	Slashes       []int
-	Parts         []string
-	Tokens        []ScanToken
-	MaxDepth      int
-}
+// ScanToken and ScanState are defined in types.go
 
 func isPathSeparator(code int) bool {
 	return code == CHAR_FORWARD_SLASH || code == CHAR_BACKWARD_SLASH
@@ -389,40 +357,54 @@ func Scan(input string, options *Options) ScanState {
 	}
 
 	if opts.Parts || opts.Tokens {
-		var prevIndex int
-		for idx, slashPos := range slashes {
-			n := 0
-			if idx > 0 {
-				n = prevIndex + 1
-			} else {
-				n = start
-			}
-			value := input[n:slashPos]
-			if opts.Tokens {
-				if idx == 0 && start != 0 {
-					tokens[idx].IsPrefix = true
-					tokens[idx].Value = prefix
-				} else {
-					tokens[idx].Value = value
-				}
-				depth(&tokens[idx])
-				state.MaxDepth += tokens[idx].Depth
-			}
-			if idx != 0 || value != "" {
-				parts = append(parts, value)
-			}
-			prevIndex = slashPos
+		subject := input
+		if start > 0 {
+			subject = str
 		}
 
-		if prevIndex+1 < len(input) {
-			value := input[prevIndex+1:]
-			parts = append(parts, value)
+		var prevIndex int
+		if len(slashes) == 0 {
+			parts = append(parts, subject)
+			if opts.Tokens && len(tokens) > 0 {
+				tokens[0].Value = subject
+				depth(&tokens[0])
+				state.MaxDepth += tokens[0].Depth
+			}
+		} else {
+			for idx, slashPos := range slashes {
+				if slashPos < start {
+					continue
+				}
+				effectiveSlashPos := slashPos - start
+				value := subject[prevIndex:effectiveSlashPos]
+				if opts.Tokens {
+					if idx == 0 && start != 0 {
+						tokens[idx].IsPrefix = true
+						tokens[idx].Value = prefix
+					} else {
+						tokens[idx].Value = value
+					}
+					depth(&tokens[idx])
+					state.MaxDepth += tokens[idx].Depth
+				}
+				if value != "" || idx != 0 {
+					parts = append(parts, value)
+				}
+				prevIndex = effectiveSlashPos + 1
+			}
 
-			if opts.Tokens {
-				tokenIndex := len(tokens) - 1
-				tokens[tokenIndex].Value = value
-				depth(&tokens[tokenIndex])
-				state.MaxDepth += tokens[tokenIndex].Depth
+			if prevIndex < len(subject) {
+				value := subject[prevIndex:]
+				if value != "" {
+					parts = append(parts, value)
+				}
+
+				if opts.Tokens && len(tokens) > 0 {
+					tokenIndex := len(tokens) - 1
+					tokens[tokenIndex].Value = value
+					depth(&tokens[tokenIndex])
+					state.MaxDepth += tokens[tokenIndex].Depth
+				}
 			}
 		}
 

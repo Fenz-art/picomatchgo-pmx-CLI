@@ -1,21 +1,10 @@
-package utils
+package picomatch
 
 import (
 	"errors"
 	"regexp"
 	"strings"
 )
-
-type MatchResult struct {
-	Glob    string
-	State   ParseState
-	Regex   *regexp.Regexp
-	Posix   bool
-	Input   string
-	Output  string
-	Match   []string
-	IsMatch bool
-}
 
 func Test(input string, regex *regexp.Regexp, options *Options, glob string, posix bool) (bool, []string, string, error) {
 	if input == "" {
@@ -60,17 +49,23 @@ func Test(input string, regex *regexp.Regexp, options *Options, glob string, pos
 	return match, found, output, nil
 }
 
-func MatchBase(input, glob string, options *Options, posix bool) bool {
-	r, err := regexp.Compile(glob)
-	if err == nil {
-		return r.MatchString(Basename(input, posix))
-	}
-
-	regex, err := MakeRe(glob, options)
-	if err != nil {
+func MatchBase(input string, globOrRegex interface{}, options *Options, posix bool) bool {
+	switch v := globOrRegex.(type) {
+	case *regexp.Regexp:
+		return v.MatchString(Basename(input, posix))
+	case string:
+		r, err := regexp.Compile(v)
+		if err == nil {
+			return r.MatchString(Basename(input, posix))
+		}
+		regex, err := MakeRe(v, options)
+		if err != nil {
+			return false
+		}
+		return regex.MatchString(Basename(input, posix))
+	default:
 		return false
 	}
-	return regex.MatchString(Basename(input, posix))
 }
 
 func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {

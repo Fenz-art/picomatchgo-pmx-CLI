@@ -79,4 +79,3 @@ func TestVersion(t *testing.T) {
 		t.Errorf("Expected Version '1.0.0', got %q", Version)
 	}
 }
-
