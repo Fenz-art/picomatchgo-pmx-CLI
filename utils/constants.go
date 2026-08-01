@@ -1,11 +1,11 @@
 package utils
 
 import (
-	pm "github.com/debayansamal/port-mortem-picomatch-go"
+	"github.com/debayansamal/port-mortem-picomatch-go/options"
 	"regexp"
 )
 
-type Options = pm.Options
+type Options = options.Options
 
 const (
 	DEFAULT_MAX_EXTGLOB_RECURSION = 0
