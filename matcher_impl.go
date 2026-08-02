@@ -83,66 +83,78 @@ func Test(input string, regex *regexp.Regexp, options *Options, glob string, pos
 }
 
 func MatchBase(input string, globOrRegex interface{}, options *Options, posix bool) bool {
+	windows := posix
+	if options != nil && options.Windows {
+		windows = true
+	}
+
 	switch v := globOrRegex.(type) {
 	case *regexp.Regexp:
-		return v.MatchString(Basename(input, posix))
+		return v.MatchString(Basename(input, windows))
 	case string:
 		r, err := regexp.Compile(v)
 		if err == nil {
-			return r.MatchString(Basename(input, posix))
+			return r.MatchString(Basename(input, windows))
 		}
 		regex, err := MakeRe(v, options)
 		if err != nil {
 			return false
 		}
-		return regex.MatchString(Basename(input, posix))
+		return regex.MatchString(Basename(input, windows))
 	default:
 		return false
 	}
 }
 
+func matchPattern(str string, pattern string, opts *Options) (bool, error) {
+	subject := str
+	negated := strings.HasPrefix(pattern, "!")
+	if negated {
+		pattern = pattern[1:]
+	}
+
+	if opts != nil && opts.Windows {
+		subject = strings.ReplaceAll(subject, `\`, "/")
+		pattern = strings.ReplaceAll(pattern, `\`, "/")
+	}
+
+	if opts != nil && (opts.MatchBase || opts.Basename) {
+		subject = Basename(str, opts.Windows)
+	}
+
+	if shouldSkipDotfile(subject, pattern, opts) {
+		return false, nil
+	}
+
+	if !opts.Dot && strings.HasPrefix(subject, ".") && !strings.HasPrefix(pattern, ".") {
+		return false, nil
+	}
+
+	regex, err := MakeRe(pattern, opts)
+	if err != nil {
+		return false, err
+	}
+
+	matched := regex.MatchString(subject)
+	if negated {
+		return !matched, nil
+	}
+	return matched, nil
+}
+
+// IsMatch reports whether the provided input matches one of the supplied glob patterns.
 func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {
 	opts := options
 	if opts == nil {
-		opts = &Options{Fastpaths: true}
+		opts = &Options{}
 	}
 
 	switch p := patterns.(type) {
 	case string:
-		pattern := p
-		negated := false
-		if strings.HasPrefix(pattern, "!") && !opts.Nonegate {
-			negated = true
-			pattern = pattern[1:]
-		}
-
-		input := str
-		if opts.Windows || strings.Contains(str, "\\") {
-			input = ToPosixSlashes(str)
-		}
-
-		if (opts.MatchBase || opts.Basename) && !strings.Contains(pattern, "/") {
-			input = Basename(input, opts.Windows)
-		}
-
-		if shouldSkipDotfile(input, pattern, opts) {
-			return negated, nil
-		}
-
-		regex, err := MakeRe(pattern, opts)
-		if err != nil {
-			return false, err
-		}
-
-		matched := regex.MatchString(input)
-		if negated {
-			return !matched, nil
-		}
-		return matched, nil
-
+		return matchPattern(str, p, opts)
 	case []string:
 		for _, pattern := range p {
-			ok, err := IsMatch(str, pattern, opts)
+			ok, err := matchPattern(str, pattern, opts)
 			if err != nil {
 				return false, err
 			}
@@ -156,6 +168,7 @@ func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {
 	}
 }
 
+// CompileRe builds a regexp.Regexp from parsed glob state.
 func CompileRe(state ParseState, options *Options) (*regexp.Regexp, error) {
 	opts := options
 	if opts == nil {
@@ -177,6 +190,7 @@ func CompileRe(state ParseState, options *Options) (*regexp.Regexp, error) {
 	return ToRegex(source, options)
 }
 
+// ToRegex compiles a regex source string into a regexp.Regexp using the supplied options.
 func ToRegex(source string, options *Options) (*regexp.Regexp, error) {
 	opts := options
 	if opts == nil {
@@ -194,6 +208,7 @@ func ToRegex(source string, options *Options) (*regexp.Regexp, error) {
 	return regexp.Compile(source)
 }
 
+// MakeRe parses and compiles a glob pattern into a regexp.Regexp.
 func MakeRe(input string, options *Options) (*regexp.Regexp, error) {
 	if input == "" {
 		return nil, errors.New("expected a non-empty string")
@@ -201,12 +216,12 @@ func MakeRe(input string, options *Options) (*regexp.Regexp, error) {
 
 	opts := options
 	if opts == nil {
-		opts = &Options{Fastpaths: true}
+		opts = &Options{}
 	}
 
 	var output string
 	if opts.Fastpaths {
-		s, err := parseFastpaths(input, options)
+		s, err := parseFastpaths(input)
 		if err == nil && s != "" {
 			output = s
 		}
