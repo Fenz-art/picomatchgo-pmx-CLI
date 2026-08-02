@@ -16,6 +16,8 @@ func depth(token *ScanToken) {
 	}
 }
 
+// Scan analyzes a glob pattern and returns structural metadata such as the base
+// path, glob segment, and whether the pattern contains brace or extglob syntax.
 func Scan(input string, options *Options) ScanState {
 	opts := options
 	if opts == nil {

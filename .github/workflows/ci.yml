@@ -1,0 +1,45 @@
+name: Go CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.21']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Format check
+        run: gofmt -w $(find . -name '*.go' -not -path './.git/*') && git diff --exit-code
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run unit tests
+        run: go test ./...
+
+      - name: Run race tests
+        run: go test -race ./...
+
+      - name: Run fuzz targets
+        run: |
+          go test -fuzz=FuzzScan -fuzztime=15s .
+          go test -fuzz=FuzzParse -fuzztime=15s .
+          go test -fuzz=FuzzIsMatch -fuzztime=15s .
+
+      - name: Run benchmarks
+        run: go test -bench=. -run=^$ ./...

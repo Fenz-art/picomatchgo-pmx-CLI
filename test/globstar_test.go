@@ -1,8 +1,8 @@
 package test
 
 import (
-	"testing"
 	"github.com/debayansamal/port-mortem-picomatch-go"
+	"testing"
 )
 
 func TestGlobstarPatterns(t *testing.T) {
