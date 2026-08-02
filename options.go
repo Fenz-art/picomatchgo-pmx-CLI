@@ -1,6 +1,7 @@
 package picomatch
 
-// DefaultOptions returns a new Options struct initialized with default settings.
+// DefaultOptions returns a new Options struct initialized with safe defaults for
+// glob scanning and matching.
 func DefaultOptions() Options {
 	return Options{
 		MaxLength:       65536,

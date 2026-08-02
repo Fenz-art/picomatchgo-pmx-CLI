@@ -360,6 +360,8 @@ func analyzeRepeatedExtglob(body string, options *Options) *RepeatedExtglobAnaly
 
 // RepeatedExtglobAnalysis is defined in types.go
 
+// Parse converts a glob pattern into parse state that can be compiled into a
+// regular expression for matching.
 func Parse(input string, options *Options) (ParseState, error) {
 	opts := cloneOptions(options)
 	state := ParseState{Input: input}

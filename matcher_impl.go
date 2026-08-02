@@ -101,6 +101,7 @@ func MatchBase(input string, globOrRegex interface{}, options *Options, posix bo
 	}
 }
 
+// IsMatch reports whether the provided input matches one of the supplied glob patterns.
 func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {
 	opts := options
 	if opts == nil {
@@ -133,6 +134,7 @@ func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {
 	}
 }
 
+// CompileRe builds a regexp.Regexp from parsed glob state.
 func CompileRe(state ParseState, options *Options) (*regexp.Regexp, error) {
 	opts := options
 	if opts == nil {
@@ -154,6 +156,7 @@ func CompileRe(state ParseState, options *Options) (*regexp.Regexp, error) {
 	return ToRegex(source, options)
 }
 
+// ToRegex compiles a regex source string into a regexp.Regexp using the supplied options.
 func ToRegex(source string, options *Options) (*regexp.Regexp, error) {
 	opts := options
 	if opts == nil {
@@ -171,6 +174,7 @@ func ToRegex(source string, options *Options) (*regexp.Regexp, error) {
 	return regexp.Compile(source)
 }
 
+// MakeRe parses and compiles a glob pattern into a regexp.Regexp.
 func MakeRe(input string, options *Options) (*regexp.Regexp, error) {
 	if input == "" {
 		return nil, errors.New("expected a non-empty string")
