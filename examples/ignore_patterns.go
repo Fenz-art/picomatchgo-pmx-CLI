@@ -1,12 +1,10 @@
 //go:build ignore
-// +build ignore
 
 package main
 
 import (
 	"fmt"
-
-	picomatch "github.com/debayansamal/port-mortem-picomatch-go"
+	"github.com/debayansamal/port-mortem-picomatch-go"
 )
 
 func main() {
