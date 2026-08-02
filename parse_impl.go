@@ -360,15 +360,108 @@ func analyzeRepeatedExtglob(body string, options *Options) *RepeatedExtglobAnaly
 
 // RepeatedExtglobAnalysis is defined in types.go
 
-// Parse converts a glob pattern into parse state that can be compiled into a
-// regular expression for matching.
-func Parse(input string, options *Options) (ParseState, error) {
-	opts := cloneOptions(options)
-	state := ParseState{Input: input}
-	cleanInput := RemovePrefix(input, &state)
-	var builder strings.Builder
+func parseExtglob(pattern string, start int, opts *Options) (string, int, bool) {
+	if start >= len(pattern)-1 || pattern[start+1] != '(' {
+		return "", 0, false
+	}
 
-	segments := strings.Split(cleanInput, "/")
+	depth := 0
+	end := -1
+	for i := start + 1; i < len(pattern); i++ {
+		switch pattern[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				end = i
+				goto done
+			}
+		}
+	}
+
+done:
+	if end == -1 {
+		return "", 0, false
+	}
+
+	body := pattern[start+2 : end]
+	branches := splitTopLevel(body)
+	if len(branches) == 0 {
+		return "", 0, false
+	}
+
+	parts := make([]string, 0, len(branches))
+	for _, branch := range branches {
+		parts = append(parts, globToRegex(branch, opts))
+	}
+
+	joined := strings.Join(parts, "|")
+	switch pattern[start] {
+	case '@':
+		return "(?:" + joined + ")", end + 1, true
+	case '+':
+		return "(?:" + joined + ")+", end + 1, true
+	case '*':
+		return "(?:" + joined + ")*", end + 1, true
+	case '?':
+		return "(?:" + joined + ")?", end + 1, true
+	case '!':
+		return "(?:" + joined + ")", end + 1, true
+	default:
+		return "", 0, false
+	}
+}
+
+func globSegmentToRegex(segment string, opts *Options) string {
+	var builder strings.Builder
+	for i := 0; i < len(segment); {
+		ch := segment[i]
+		if (ch == '@' || ch == '+' || ch == '*' || ch == '?' || ch == '!') && i+1 < len(segment) && segment[i+1] == '(' {
+			if replaced, next, ok := parseExtglob(segment, i, opts); ok {
+				builder.WriteString(replaced)
+				i = next
+				continue
+			}
+		}
+
+		switch ch {
+		case '*':
+			if i == 0 && !opts.Dot {
+				builder.WriteString(`[^.][^/]*`)
+				i++
+				continue
+			}
+			if i+1 < len(segment) && segment[i+1] == '*' {
+				builder.WriteString(`.*`)
+				i += 2
+			} else {
+				builder.WriteString(`[^/]*`)
+				i++
+			}
+		case '?':
+			if i == 0 && !opts.Dot {
+				builder.WriteString(`[^.]`)
+				i++
+				continue
+			}
+			builder.WriteString(`[^/]`)
+			i++
+		case '.':
+			builder.WriteString(`\.`)
+			i++
+		default:
+			builder.WriteString(EscapeRegex(string(ch)))
+			i++
+		}
+	}
+	return builder.String()
+}
+
+func globToRegex(pattern string, opts *Options) string {
+	normalized := strings.ReplaceAll(pattern, `\`, "/")
+	segments := strings.Split(normalized, "/")
+	var builder strings.Builder
 	for idx, segment := range segments {
 		if idx > 0 {
 			builder.WriteByte('/')
@@ -376,32 +469,25 @@ func Parse(input string, options *Options) (ParseState, error) {
 		if segment == "" {
 			continue
 		}
-
-		if !opts.Dot && len(segment) > 0 && (segment[0] == '*' || segment[0] == '?') {
-			if segment[0] == '*' {
-				builder.WriteString(`[^./][^/]*`)
-			} else {
-				builder.WriteString(`[^./]`)
-			}
-			continue
-		}
-
-		for i := 0; i < len(segment); i++ {
-			ch := segment[i]
-			switch ch {
-			case '*':
-				builder.WriteString(`[^/]*`)
-			case '?':
-				builder.WriteString(`[^/]`)
-			case '.':
-				builder.WriteString(`\.`)
-			default:
-				builder.WriteString(EscapeRegex(string(ch)))
-			}
-		}
+		builder.WriteString(globSegmentToRegex(segment, opts))
 	}
+	return builder.String()
+}
 
-	state.Output = builder.String()
+// Parse converts a glob pattern into parse state that can be compiled into a
+// regular expression for matching.
+func Parse(input string, options *Options) (ParseState, error) {
+	opts := cloneOptions(options)
+	state := ParseState{Input: input}
+	cleanInput := RemovePrefix(input, &state)
+	if opts.Windows {
+		cleanInput = strings.ReplaceAll(cleanInput, `\`, "/")
+	}
+	if strings.HasPrefix(cleanInput, "!") {
+		state.Negated = true
+		cleanInput = cleanInput[1:]
+	}
+	state.Output = globToRegex(cleanInput, opts)
 	return state, nil
 }
 

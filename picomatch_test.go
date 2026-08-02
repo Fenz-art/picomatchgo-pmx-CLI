@@ -159,7 +159,7 @@ func TestIsMatch_MatchBase(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
-			got, err := picomatch.IsMatch(tc.input, tc.pattern, opts)
+			got, err := IsMatch(tc.input, tc.pattern, opts)
 			if err != nil {
 				t.Fatalf("IsMatch failed: %v", err)
 			}
