@@ -414,6 +414,14 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		return "(?:.*)"
 	}
 
+	star := STAR
+	if opts.Bash {
+		star = globstar(opts)
+	}
+	if opts.Capture {
+		star = "(" + star + ")"
+	}
+
 	nodot := ""
 	if !opts.Dot {
 		nodot = NO_DOT
@@ -421,13 +429,6 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	qmarkNoDot := QMARK_NO_DOT
 	if opts.Dot {
 		qmarkNoDot = QMARK
-	}
-	star := STAR
-	if opts.Bash {
-		star = globstar(opts)
-	}
-	if opts.Capture {
-		star = "(" + star + ")"
 	}
 
 	if opts.Noext {
@@ -571,6 +572,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	}
 
 	extglobOpen := func(t, value string) {
+		// Look up the Open/Close patterns from the extglob character map
 		egChar := extglobChars[value[0]]
 
 		token := &ParseToken{
@@ -904,7 +906,11 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 		if value == "{" && !opts.Nobrace {
 			increment("braces")
-			open := &ParseToken{Type: "brace", Value: string(value), Output: "(", OutputIndex: len(state.Output), TokensIndex: len(tokens)}
+			braceOpenOutput := "(?:"
+			if opts.Capture {
+				braceOpenOutput = "("
+			}
+			open := &ParseToken{Type: "brace", Value: string(value), Output: braceOpenOutput, OutputIndex: len(state.Output), TokensIndex: len(tokens)}
 			braces = append(braces, open)
 			push(open)
 			continue
