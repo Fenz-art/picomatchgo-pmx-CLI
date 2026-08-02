@@ -26,3 +26,13 @@ func TestRootIsMatchArray(t *testing.T) {
 		t.Fatal("expected a.a to match patterns")
 	}
 }
+
+func TestRootDotfileHandling(t *testing.T) {
+	ok, err := IsMatch("foo/.bar", "foo/*", nil)
+	if err != nil {
+		t.Fatalf("IsMatch failed: %v", err)
+	}
+	if ok {
+		t.Fatal("expected foo/.bar to not match foo/*")
+	}
+}

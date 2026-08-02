@@ -6,6 +6,35 @@ import (
 	"strings"
 )
 
+func shouldSkipDotfile(input string, pattern string, opts *Options) bool {
+	if opts != nil && opts.Dot {
+		return false
+	}
+	if input == "" || pattern == "" {
+		return false
+	}
+
+	inputSegs := strings.Split(input, "/")
+	patternSegs := strings.Split(pattern, "/")
+	for i, seg := range inputSegs {
+		if seg == "" || !strings.HasPrefix(seg, ".") {
+			continue
+		}
+		if i >= len(patternSegs) {
+			return true
+		}
+		pseg := patternSegs[i]
+		if pseg == "" || pseg == "**" {
+			continue
+		}
+		if strings.HasPrefix(pseg, ".") {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func Test(input string, regex *regexp.Regexp, options *Options, glob string, posix bool) (bool, []string, string, error) {
 	if input == "" {
 		return false, nil, "", nil
@@ -14,6 +43,10 @@ func Test(input string, regex *regexp.Regexp, options *Options, glob string, pos
 	opts := options
 	if opts == nil {
 		opts = &Options{}
+	}
+
+	if shouldSkipDotfile(input, glob, opts) {
+		return false, nil, input, nil
 	}
 
 	var format func(string) string
@@ -69,16 +102,24 @@ func MatchBase(input string, globOrRegex interface{}, options *Options, posix bo
 }
 
 func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {
+	opts := options
+	if opts == nil {
+		opts = &Options{}
+	}
+
 	switch p := patterns.(type) {
 	case string:
-		regex, err := MakeRe(p, options)
+		if shouldSkipDotfile(str, p, opts) {
+			return false, nil
+		}
+		regex, err := MakeRe(p, opts)
 		if err != nil {
 			return false, err
 		}
 		return regex.MatchString(str), nil
 	case []string:
 		for _, pattern := range p {
-			ok, err := IsMatch(str, pattern, options)
+			ok, err := IsMatch(str, pattern, opts)
 			if err != nil {
 				return false, err
 			}
