@@ -27,6 +27,16 @@ func TestIsMatchArray(t *testing.T) {
 	}
 }
 
+func TestRootDotfileHandling(t *testing.T) {
+	ok, err := IsMatch("foo/.bar", "foo/*", nil)
+	if err != nil {
+		t.Fatalf("IsMatch failed: %v", err)
+	}
+	if ok {
+		t.Fatal("expected foo/.bar to not match foo/*")
+	}
+}
+
 func TestIsMatch_Basic(t *testing.T) {
 	tests := []struct {
 		pattern string
@@ -144,12 +154,12 @@ func TestIsMatch_MatchBase(t *testing.T) {
 	}{
 		{"*.js", "foo/bar/baz.js", true},
 		{"*.js", "foo/bar/baz.txt", false},
-		{"a/*.js", "foo/bar/a/baz.js", false}, // matchBase applies only when pattern does not contain a slash
+		{"a/*.js", "foo/bar/a/baz.js", false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.pattern+"_"+tc.input, func(t *testing.T) {
-			got, err := IsMatch(tc.input, tc.pattern, opts)
+			got, err := picomatch.IsMatch(tc.input, tc.pattern, opts)
 			if err != nil {
 				t.Fatalf("IsMatch failed: %v", err)
 			}

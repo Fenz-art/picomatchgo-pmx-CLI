@@ -375,8 +375,13 @@ func Parse(input string, options *Options) (ParseState, error) {
 			continue
 		}
 
-		if idx == 0 && !opts.Dot && len(segment) > 0 && (segment[0] == '*' || segment[0] == '?') {
-			builder.WriteString(`[^/\.]`)
+		if !opts.Dot && len(segment) > 0 && (segment[0] == '*' || segment[0] == '?') {
+			if segment[0] == '*' {
+				builder.WriteString(`[^./][^/]*`)
+			} else {
+				builder.WriteString(`[^./]`)
+			}
+			continue
 		}
 
 		for i := 0; i < len(segment); i++ {
