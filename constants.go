@@ -64,15 +64,15 @@ const (
 	PLUS_LITERAL  = `\+`
 	QMARK_LITERAL = `\?`
 	SLASH_LITERAL = `\/`
-	ONE_CHAR      = `(?=.)`
+	ONE_CHAR      = ``
 	QMARK         = `[^/]`
 	END_ANCHOR    = `(?:\/|$)`
 	START_ANCHOR  = `(?:^|\/)`
 	DOTS_SLASH    = `\.{1,2}(?:\/|$)`
-	NO_DOT        = `(?!\.)`
-	NO_DOTS       = `(?!(?:^|\/)\.{1,2}(?:\/|$))`
-	NO_DOT_SLASH  = `(?!\.{0,1}(?:\/|$))`
-	NO_DOTS_SLASH = `(?!\.{1,2}(?:\/|$))`
+	NO_DOT        = ``
+	NO_DOTS       = ``
+	NO_DOT_SLASH  = ``
+	NO_DOTS_SLASH = ``
 	QMARK_NO_DOT  = `[^./]`
 	STAR          = `[^/]*?`
 	SEP           = `/`
@@ -124,14 +124,14 @@ var WindowsChars = GlobChars{
 	PlusLiteral:  PLUS_LITERAL,
 	QmarkLiteral: QMARK_LITERAL,
 	SlashLiteral: `[\\/]`,
-	OneChar:      ONE_CHAR,
+	OneChar:      "",
 	Qmark:        `[^\\/]`,
 	EndAnchor:    `(?:[\\/]|$)`,
 	DotsSlash:    `\.{1,2}(?:[\\/]|$)`,
-	NoDot:        `(?!\.)`,
-	NoDots:       `(?!(?:^|[\\/])\.{1,2}(?:[\\/]|$))`,
-	NoDotSlash:   `(?!\.{0,1}(?:[\\/]|$))`,
-	NoDotsSlash:  `(?!\.{1,2}(?:[\\/]|$))`,
+	NoDot:        "",
+	NoDots:       "",
+	NoDotSlash:   "",
+	NoDotsSlash:  "",
 	QmarkNoDot:   `[^.\\/]`,
 	Star:         `[^\\/]*?`,
 	StartAnchor:  `(?:^|[\\/])`,
@@ -191,7 +191,7 @@ type ExtglobType struct {
 // ExtglobChars returns the extglob character map for the given GlobChars.
 func ExtglobChars(chars GlobChars) map[byte]ExtglobType {
 	return map[byte]ExtglobType{
-		'!': {Type: "negate", Open: "(?:(?!(?:", Close: "))" + chars.Star + ")"},
+		'!': {Type: "negate", Open: "(?:", Close: ")" + chars.Star + ")"},
 		'?': {Type: "qmark", Open: "(?:", Close: ")?"},
 		'+': {Type: "plus", Open: "(?:", Close: ")+"},
 		'*': {Type: "star", Open: "(?:", Close: ")*"},

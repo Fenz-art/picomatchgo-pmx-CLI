@@ -104,19 +104,42 @@ func MatchBase(input string, globOrRegex interface{}, options *Options, posix bo
 func IsMatch(str string, patterns interface{}, options *Options) (bool, error) {
 	opts := options
 	if opts == nil {
-		opts = &Options{}
+		opts = &Options{Fastpaths: true}
 	}
 
 	switch p := patterns.(type) {
 	case string:
-		if shouldSkipDotfile(str, p, opts) {
-			return false, nil
+		pattern := p
+		negated := false
+		if strings.HasPrefix(pattern, "!") && !opts.Nonegate {
+			negated = true
+			pattern = pattern[1:]
 		}
-		regex, err := MakeRe(p, opts)
+
+		input := str
+		if opts.Windows || strings.Contains(str, "\\") {
+			input = ToPosixSlashes(str)
+		}
+
+		if (opts.MatchBase || opts.Basename) && !strings.Contains(pattern, "/") {
+			input = Basename(input, opts.Windows)
+		}
+
+		if shouldSkipDotfile(input, pattern, opts) {
+			return negated, nil
+		}
+
+		regex, err := MakeRe(pattern, opts)
 		if err != nil {
 			return false, err
 		}
-		return regex.MatchString(str), nil
+
+		matched := regex.MatchString(input)
+		if negated {
+			return !matched, nil
+		}
+		return matched, nil
+
 	case []string:
 		for _, pattern := range p {
 			ok, err := IsMatch(str, pattern, opts)
@@ -178,7 +201,7 @@ func MakeRe(input string, options *Options) (*regexp.Regexp, error) {
 
 	opts := options
 	if opts == nil {
-		opts = &Options{}
+		opts = &Options{Fastpaths: true}
 	}
 
 	var output string
