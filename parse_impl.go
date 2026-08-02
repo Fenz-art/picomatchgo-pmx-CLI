@@ -361,46 +361,7 @@ func analyzeRepeatedExtglob(body string, options *Options) *RepeatedExtglobAnaly
 // RepeatedExtglobAnalysis is defined in types.go
 
 func Parse(input string, options *Options) (ParseState, error) {
-	opts := cloneOptions(options)
-	state := ParseState{Input: input}
-	cleanInput := RemovePrefix(input, &state)
-	var builder strings.Builder
-
-	segments := strings.Split(cleanInput, "/")
-	for idx, segment := range segments {
-		if idx > 0 {
-			builder.WriteByte('/')
-		}
-		if segment == "" {
-			continue
-		}
-
-		if !opts.Dot && len(segment) > 0 && (segment[0] == '*' || segment[0] == '?') {
-			if segment[0] == '*' {
-				builder.WriteString(`[^./][^/]*`)
-			} else {
-				builder.WriteString(`[^./]`)
-			}
-			continue
-		}
-
-		for i := 0; i < len(segment); i++ {
-			ch := segment[i]
-			switch ch {
-			case '*':
-				builder.WriteString(`[^/]*`)
-			case '?':
-				builder.WriteString(`[^/]`)
-			case '.':
-				builder.WriteString(`\.`)
-			default:
-				builder.WriteString(EscapeRegex(string(ch)))
-			}
-		}
-	}
-
-	state.Output = builder.String()
-	return state, nil
+	return parseLegacy(input, options)
 }
 
 func parseLegacy(input string, options *Options) (ParseState, error) {
@@ -432,29 +393,25 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	}
 
 	chars := GetGlobChars(opts.Windows)
-	_ = ExtglobChars(chars)
+	extglobChars := ExtglobChars(chars)
 
 	DOT_LITERAL := chars.DotLiteral
 	PLUS_LITERAL := chars.PlusLiteral
 	SLASH_LITERAL := chars.SlashLiteral
 	ONE_CHAR := chars.OneChar
-	DOTS_SLASH := chars.DotsSlash
 	NO_DOT := chars.NoDot
 	NO_DOT_SLASH := chars.NoDotSlash
 	NO_DOTS_SLASH := chars.NoDotsSlash
 	QMARK := chars.Qmark
 	QMARK_NO_DOT := chars.QmarkNoDot
 	STAR := chars.Star
-	START_ANCHOR := chars.StartAnchor
 
-	globstar := func(o *Options) string {
-		pattern := START_ANCHOR
-		if o.Dot {
-			pattern += DOTS_SLASH
-		} else {
-			pattern += DOT_LITERAL
+	var globstar func(o *Options) string
+	globstar = func(o *Options) string {
+		if o.NoGlobstar {
+			return STAR
 		}
-		return "(" + capture + `(?:(?!` + pattern + `).)*?)`
+		return "(?:.*)"
 	}
 
 	nodot := ""
@@ -504,6 +461,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	prev := bos
 
 	eeos := func() bool { return state.Index == length-1 }
+	_ = eeos
 	eos := func() bool { return state.Index >= length }
 	eof := func() bool { return state.Index >= len(input) }
 	peek := func(n int) byte {
@@ -525,8 +483,12 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		state.Index += num
 	}
 	appendOutput := func(token *ParseToken) {
-		state.Output += token.Output
-		consume(token.Value, len(token.Value))
+		if token.Output != "" {
+			state.Output += token.Output
+		} else {
+			state.Output += token.Value
+		}
+		state.Consumed += token.Value
 	}
 
 	negate := func() bool {
@@ -597,6 +559,8 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		if prev != nil && prev.Type == "text" && tok.Type == "text" {
 			prev.Output = prev.Output + tok.Value
 			prev.Value += tok.Value
+			state.Output += tok.Value
+			state.Consumed += tok.Value
 			return
 		}
 
@@ -607,10 +571,14 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	}
 
 	extglobOpen := func(t, value string) {
+		egChar := extglobChars[value[0]]
+
 		token := &ParseToken{
 			Type:       t,
 			Value:      value,
 			Output:     "",
+			Open:       egChar.Open,
+			Close:      egChar.Close,
 			Conditions: 1,
 			Inner:      "",
 		}
@@ -674,28 +642,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		if opts.Capture {
 			output = output + ")"
 		}
-		var rest string
 		if token.Type == "negate" {
-			extglobStar := star
-
-			if token.Inner != "" && strings.Contains(token.Inner, "/") {
-				extglobStar = globstar(opts)
-			}
-
-			if extglobStar != star || eeos() || regexp.MustCompile(`^\)+$`).MatchString(remaining()) {
-				output = token.Close + `)` + `)$` + extglobStar
-			}
-
-			if strings.Contains(token.Inner, "*") {
-				rest = remaining()
-				if regexp.MustCompile(`^\.[^\\/.]+$`).MatchString(rest) {
-					expression, err := Parse(rest, options)
-					if err == nil {
-						output = token.Close + expression.Output + `)` + extglobStar + `)`
-					}
-				}
-			}
-
 			if token.Prev != nil && token.Prev.Type == "bos" {
 				state.NegatedExtglob = true
 			}
@@ -713,29 +660,26 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		lastIndex := 0
 		for _, loc := range REGEX_SPECIAL_CHARS_BACKREF.FindAllStringSubmatchIndex(input, -1) {
 			builder.WriteString(input[lastIndex:loc[0]])
-			esc := input[loc[2]:loc[3]]
-			chars := input[loc[4]:loc[5]]
-			first := input[loc[6]:loc[7]]
-			rest := input[loc[8]:loc[9]]
-			if first == `\\` {
+			var esc string
+			if loc[2] != -1 {
+				esc = input[loc[2]:loc[3]]
+			}
+			char := input[loc[4]:loc[5]]
+
+			if char == `\\` {
 				backslashes = true
 				builder.WriteString(input[loc[0]:loc[1]])
-			} else if first == "?" {
+			} else if char == "?" {
 				if esc != "" {
-					builder.WriteString(esc + first + strings.Repeat(QMARK, len(rest)))
-				} else if loc[0] == 0 {
-					builder.WriteString(qmarkNoDot + strings.Repeat(QMARK, len(rest)))
+					builder.WriteString(esc + `\?`)
 				} else {
-					builder.WriteString(strings.Repeat(QMARK, len(chars)))
+					builder.WriteString(qmarkNoDot)
 				}
-			} else if first == "." {
-				builder.WriteString(strings.Repeat(DOT_LITERAL, len(chars)))
-			} else if first == "*" {
+			} else if char == "." {
+				builder.WriteString(DOT_LITERAL)
+			} else if char == "*" {
 				if esc != "" {
-					builder.WriteString(esc + first)
-					if len(rest) > 0 {
-						builder.WriteString(star)
-					}
+					builder.WriteString(esc + "*")
 				} else {
 					builder.WriteString(star)
 				}
@@ -830,11 +774,13 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 						pre := prev.Value[:idx]
 						rest := prev.Value[idx+2:]
 						if posix, ok := PosixRegexSource[rest]; ok {
-							prev.Value = pre + posix
+							prev.Value = pre + "[" + posix + "]"
+							prev.Output = prev.Value
 							state.Backtrack = true
-							advance()
-							if state.Output == "" && len(tokens) > 1 && tokens[1] == prev {
-								tokens[0].Output = ONE_CHAR
+							advance() // consume ':'
+							if peek(1) == ']' {
+								advance() // consume ']'
+								decrement("brackets")
 							}
 							continue
 						}
@@ -1133,7 +1079,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 		if value == "@" {
 			if !opts.Noextglob && peek(1) == '(' && peek(2) != '?' {
-				push(&ParseToken{Type: "at", Extglob: true, Value: string(value), Output: ""})
+				extglobOpen("at", "@")
 				continue
 			}
 			push(&ParseToken{Type: "text", Value: string(value)})
@@ -1300,8 +1246,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 				state.Output += NO_DOTS_SLASH
 				prev.Output += NO_DOTS_SLASH
 			} else {
-				state.Output += nodot
-				prev.Output += nodot
+				token.Output = `[^./][^/]*?`
 			}
 
 			if peek(1) != CHAR_ASTERISK {
@@ -1337,7 +1282,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		decrement("braces")
 	}
 
-	if !opts.StrictSlashes && (prev.Type == "star" || prev.Type == "bracket") {
+	if !opts.StrictSlashes && prev.Type == "star" {
 		push(&ParseToken{Type: "maybe_slash", Value: "", Output: SLASH_LITERAL + "?"})
 	}
 
@@ -1359,7 +1304,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 }
 
 func parseFastpaths(input string, options *Options) (string, error) {
-	return "", nil
+	return parseFastpathsLegacy(input, options)
 }
 
 func parseFastpathsLegacy(input string, options *Options) (string, error) {
@@ -1372,30 +1317,23 @@ func parseFastpathsLegacy(input string, options *Options) (string, error) {
 		return "", fmt.Errorf("Input length: %d, exceeds maximum allowed length: %d", len(input), max)
 	}
 
-	input = Replacements[input]
+	if r, ok := Replacements[input]; ok {
+		input = r
+	}
 
 	chars := GetGlobChars(opts.Windows)
 	DOT_LITERAL := chars.DotLiteral
 	SLASH_LITERAL := chars.SlashLiteral
 	ONE_CHAR := chars.OneChar
-	DOTS_SLASH := chars.DotsSlash
-	NO_DOT := chars.NoDot
-	NO_DOTS := chars.NoDots
-	NO_DOTS_SLASH := chars.NoDotsSlash
 	STAR := chars.Star
-	START_ANCHOR := chars.StartAnchor
 
-	nodot := NO_DOTS
+	nodot := "[^./]"
 	if opts.Dot {
-		nodot = NO_DOT
+		nodot = ""
 	}
-	slashDot := NO_DOTS_SLASH
+	slashDot := "[^./]"
 	if opts.Dot {
-		slashDot = NO_DOT_SLASH
-	}
-	capture := "?:"
-	if opts.Capture {
-		capture = ""
+		slashDot = ""
 	}
 
 	state := ParseState{Negated: false, Prefix: ""}
@@ -1411,13 +1349,7 @@ func parseFastpathsLegacy(input string, options *Options) (string, error) {
 		if o.NoGlobstar {
 			return star
 		}
-		pattern := START_ANCHOR
-		if o.Dot {
-			pattern += DOTS_SLASH
-		} else {
-			pattern += DOT_LITERAL
-		}
-		return "(" + capture + `(?:(?!` + pattern + `).)*?)`
+		return "(?:.*)"
 	}
 
 	var create func(str string) string
