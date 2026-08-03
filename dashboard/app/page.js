@@ -445,7 +445,7 @@ export default function Home() {
             color: '#fff',
             textTransform: 'uppercase'
           }}>
-            DEPLOY OR <span style={{ color: '#00add8', textShadow: '0 0 20px rgba(0,173,216,0.3)' }}>[REDACTED]</span>
+            Team : <span style={{ color: '#00add8', textShadow: '0 0 20px rgba(0,173,216,0.3)' }}>The Flat Circle</span>
           </h1>
 
           <p style={{ 
