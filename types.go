@@ -101,7 +101,8 @@ type ScanState struct {
 	Parts    []string
 }
 
-// Parse-related shared types
+// ParseState is the intermediate state produced while translating a glob pattern
+// into regex source.
 type ParseState struct {
 	Input          string
 	Index          int
@@ -121,6 +122,7 @@ type ParseState struct {
 	Tokens         []*ParseToken
 }
 
+// ParseToken represents a single parsed token from a glob pattern.
 type ParseToken struct {
 	Type        string
 	Value       string
@@ -143,12 +145,16 @@ type ParseToken struct {
 	OutputIndex int
 }
 
+// ParseRepeatedExtglobMatch captures the repeated extglob match body and end
+// index discovered during parsing.
 type ParseRepeatedExtglobMatch struct {
 	Type string
 	Body string
 	End  int
 }
 
+// RepeatedExtglobAnalysis describes whether a repeated extglob match is safe
+// to emit as regex output.
 type RepeatedExtglobAnalysis struct {
 	Risky      bool
 	SafeOutput string

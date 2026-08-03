@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,8 +23,14 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+
       - name: Format check
         run: gofmt -w $(find . -name '*.go' -not -path './.git/*') && git diff --exit-code
+
+      - name: Lint
+        run: $(go env GOPATH)/bin/golangci-lint run ./...
 
       - name: Vet
         run: go vet ./...

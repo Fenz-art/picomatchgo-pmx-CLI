@@ -13,6 +13,7 @@ The goal of this repository is to provide a faithful Go port of the core behavio
 
 ## Compatibility notes
 
-- Path separators are normalized by the scanner and parser helpers.
-- Dotfile semantics are handled in the matcher layer to preserve upstream behavior.
-- The implementation uses Go regexp syntax and RE2-compatible constructs.
+- Path separators are normalized by the scanner and parser helpers to match the original library across POSIX and Windows-style input.
+- Dotfile semantics are handled in the matcher layer to preserve upstream behavior for patterns that do not explicitly start with a dot.
+- The implementation uses Go regexp syntax and RE2-compatible constructs, which shapes some edge-case behavior around lookarounds and complex backtracking.
+- The parser keeps the public API simple by exposing Scan, Parse, MakeRe, CompileRe, and IsMatch while preserving the same feature set for extglobs, braces, globstars, and POSIX classes.

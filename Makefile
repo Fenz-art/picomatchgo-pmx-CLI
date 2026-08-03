@@ -1,7 +1,10 @@
-.PHONY: fmt vet test cover bench fuzz
+.PHONY: fmt lint vet test cover bench fuzz
 
 fmt:
 	go fmt ./...
+
+lint:
+	golangci-lint run ./...
 
 vet:
 	go vet ./...

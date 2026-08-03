@@ -82,6 +82,8 @@ func Test(input string, regex *regexp.Regexp, options *Options, glob string, pos
 	return match, found, output, nil
 }
 
+// MatchBase evaluates whether the basename of the supplied input matches the
+// provided glob or regex using the requested options.
 func MatchBase(input string, globOrRegex interface{}, options *Options, posix bool) bool {
 	windows := posix
 	if options != nil && options.Windows {
