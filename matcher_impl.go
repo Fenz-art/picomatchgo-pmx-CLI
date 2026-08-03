@@ -223,7 +223,7 @@ func MakeRe(input string, options *Options) (*regexp.Regexp, error) {
 
 	var output string
 	if opts.Fastpaths {
-		s, err := parseFastpaths(input)
+		s, err := parseFastpaths(input, options)
 		if err == nil && s != "" {
 			output = s
 		}
