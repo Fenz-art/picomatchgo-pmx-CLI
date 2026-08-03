@@ -461,3 +461,31 @@ benchmark comparison
 future compatibility
 
 For Port Mortem, this is the architecture reviewers expect to see: same engine stages, different language implementation.
+
+---
+
+## Go Implementation Details
+
+### Core Modules
+
+- `options.go`: Defines the public `Options` configuration and default values.
+- `types.go`: Contains shared structs returned by the scanner, parser, and matcher layers.
+- `scan_impl.go`: Scans the input pattern to identify prefixes, braces, extglobs, and globstars.
+- `parse_impl.go`: Converts glob syntax into regex source and builds the internal parse state.
+- `matcher_impl.go`: Wraps the parser output into a public matcher API via `MakeRe`, `CompileRe`, and `IsMatch`.
+- `utils_impl.go`: Provides helper functions for regex escaping, POSIX slash normalization, basename handling, and output wrapping.
+- `constants.go`: Stores shared constants, character classes, and version information.
+
+### Execution Flow
+
+1. A caller invokes `Scan`, `Parse`, or `IsMatch`.
+2. `Scan` extracts structural metadata from the pattern.
+3. `Parse` translates the glob into regex source.
+4. `CompileRe` and `MakeRe` build a `regexp.Regexp` object.
+5. `IsMatch` evaluates the final pattern against the target input.
+
+### Design Goals
+
+- Preserve behavior from the original `picomatch` implementation.
+- Keep the package dependency-free and idiomatic for Go.
+- Maintain small, composable building blocks for parser, scanner, and matcher concerns.

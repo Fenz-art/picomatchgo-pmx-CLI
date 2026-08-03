@@ -108,12 +108,13 @@ picomatch-go/
 │
 │  ── Documentation ──
 ├── README.md                     # This file
-├── ARCHITECTURE.md               # Architectural design decisions
-├── BENCHMARKS.md                 # Performance benchmark results
-├── CONTRIBUTING.md               # Contribution guidelines
-├── DECISIONS.md                  # Technical decision log
-├── FUZZING.md                    # Fuzzing strategy documentation
-└── PORTING.md                    # JavaScript → Go porting methodology
+└── docs/                         # Markdown documentation files
+    ├── architecture.md           # Architectural design decisions
+    ├── benchmarks.md             # Performance benchmark results
+    ├── contributing.md           # Contribution guidelines
+    ├── decisions.md              # Technical decision log
+    ├── fuzzing.md                # Fuzzing strategy documentation
+    └── porting.md                # JavaScript → Go porting methodology
 ```
 
 ---
