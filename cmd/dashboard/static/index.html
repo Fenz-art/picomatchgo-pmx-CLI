@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Picomatch Go Validation Platform</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #07111f 0%, #0f2138 100%); color: #f5f7fb; margin: 0; padding: 0; }
+      .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+      .card { background: rgba(19, 34, 56, 0.96); border: 1px solid #29415f; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
+      button { background: linear-gradient(135deg, #21b7a8, #2f8ad8); color: white; border: 0; padding: 10px 14px; border-radius: 8px; cursor: pointer; margin-right: 8px; margin-top: 8px; font-weight: 600; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+      .status { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: bold; }
+      .pass { background: #144f2f; color: #8ee7a8; }
+      .warn { background: #53360d; color: #ffd37d; }
+      .workflow { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+      .step { background: #0b1626; border: 1px solid #35506d; border-radius: 10px; padding: 10px 12px; min-width: 120px; }
+      .step.active { border-color: #21b7a8; }
+      pre { background: #02070d; padding: 12px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+      input, textarea { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid #35506d; background: #0b1626; color: white; margin-top: 6px; }
+      .pill { display: inline-block; margin-right: 6px; margin-top: 6px; padding: 4px 8px; border-radius: 999px; background: #14253d; color: #9fc7ff; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Picomatch Production Validation Platform</h1>
+        <p>A GitHub Actions-style experience for validating the picomatch Go port.</p>
+        <div class="status pass">READY FOR RELEASE</div>
+        <div class="pill">Build</div><div class="pill">Tests</div><div class="pill">Race</div><div class="pill">Benchmarks</div><div class="pill">Fuzz</div><div class="pill">Lint</div>
+        <div class="workflow" id="workflow"></div>
+        <button onclick="runAction('ci')">Run Full Pipeline</button>
+        <button onclick="runAction('bench')">Run Benchmarks</button>
+        <button onclick="runAction('fuzz')">Run Fuzz</button>
+      </div>
+
+      <div class="card">
+        <h3>Workflow Status</h3>
+        <pre id="statusView">Loading workflow state...</pre>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Playground</h3>
+          <label>Pattern</label>
+          <input id="pattern" value="**/*.go" />
+          <label>Input</label>
+          <input id="input" value="src/internal/parser/scan.go" />
+          <button onclick="runMatch()">Run Match</button>
+          <pre id="output">Waiting for a run...</pre>
+        </div>
+
+        <div class="card">
+          <h3>Validation Logs</h3>
+          <pre id="logs">- Full CI pending
+- Benchmarks pending
+- Fuzz pending</pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function renderWorkflow(steps) {
+        const workflow = document.getElementById('workflow');
+        workflow.innerHTML = steps.map((step, index) => `<div class="step ${index === 0 ? 'active' : ''}">${step}</div>`).join('');
+      }
+
+      async function loadStatus() {
+        try {
+          const response = await fetch('/api/status');
+          const data = await response.json();
+          document.getElementById('statusView').textContent = JSON.stringify(data, null, 2);
+          renderWorkflow(['Checkout', 'Dependencies', 'Build', 'Tests', 'Benchmarks', 'Fuzz', 'Release']);
+        } catch (err) {
+          document.getElementById('statusView').textContent = 'error: ' + err.message;
+        }
+      }
+
+      async function runAction(kind) {
+        const logs = document.getElementById('logs');
+        logs.textContent = 'Running ' + kind + '...';
+        try {
+          const response = await fetch('/api/' + kind, { method: 'POST' });
+          const data = await response.json();
+          logs.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          logs.textContent = 'error: ' + err.message;
+        }
+      }
+
+      async function runMatch() {
+        const pattern = document.getElementById('pattern').value;
+        const input = document.getElementById('input').value;
+        const output = document.getElementById('output');
+        try {
+          const response = await fetch('/match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pattern, input })
+          });
+          const data = await response.json();
+          output.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          output.textContent = 'error: ' + err.message;
+        }
+      }
+
+      window.onload = loadStatus;
+    </script>
+  </body>
+</html>

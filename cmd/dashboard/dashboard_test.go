@@ -1,4 +1,4 @@
-package dashboard
+package main
 
 import (
 	"net/http"
@@ -38,5 +38,21 @@ func TestMatchEndpoint(t *testing.T) {
 
 	if !strings.Contains(w.Body.String(), "matched") {
 		t.Fatalf("match handler body = %q, want match output", w.Body.String())
+	}
+}
+
+func TestStatusEndpoint(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/status", nil)
+	w := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(statusHandler)
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status handler returned status %d", w.Code)
+	}
+
+	if !strings.Contains(w.Body.String(), "ready") {
+		t.Fatalf("status handler body = %q, want workflow state", w.Body.String())
 	}
 }
