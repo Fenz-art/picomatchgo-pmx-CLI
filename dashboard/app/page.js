@@ -9,7 +9,7 @@ import {
 export default function Home() {
   const [entered, setEntered] = useState(false);
   const [wasmLoaded, setWasmLoaded] = useState(false);
-  const [currentTab, setCurrentTab] = useState('matrix');
+  const [currentTab, setCurrentTab] = useState('ci');
   
   // Playground state
   const [pattern, setPattern] = useState('src/**/*.js');
@@ -538,11 +538,11 @@ export default function Home() {
           {/* Tab Navigation */}
           <nav style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
             {[
+              { id: 'ci', label: 'Live Workflows', icon: Activity },
               { id: 'matrix', label: 'Validation Matrix', icon: Shield },
               { id: 'playground', label: 'Playground', icon: Play },
               { id: 'lab', label: 'Compatibility Lab', icon: Globe },
-              { id: 'regressions', label: 'Regression Explorer', icon: Layers },
-              { id: 'ci', label: 'Live Workflows', icon: Activity }
+              { id: 'regressions', label: 'Regression Explorer', icon: Layers }
             ].map(tab => {
               const Icon = tab.icon;
               const isSelected = currentTab === tab.id;
