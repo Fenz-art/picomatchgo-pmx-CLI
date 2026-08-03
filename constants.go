@@ -78,7 +78,7 @@ const (
 	SEP           = `/`
 )
 
-// GlobChars holds regex tokens for POSIX or Windows.
+// GlobChars holds regex tokens for POSIX or Windows path handling.
 type GlobChars struct {
 	DotLiteral   string
 	PlusLiteral  string
@@ -138,7 +138,8 @@ var WindowsChars = GlobChars{
 	Sep:          "\\",
 }
 
-// GetGlobChars returns GlobChars for given platform.
+// GetGlobChars returns the platform-specific glob character set for POSIX or
+// Windows-style path separators.
 func GetGlobChars(win32 bool) GlobChars {
 	if win32 {
 		return WindowsChars
@@ -181,14 +182,15 @@ var Replacements = map[string]string{
 	"**/**/**": "**",
 }
 
-// ExtglobType describes an extglob operator.
+// ExtglobType describes an extglob operator and its regex delimiters.
 type ExtglobType struct {
 	Type  string
 	Open  string
 	Close string
 }
 
-// ExtglobChars returns the extglob character map for the given GlobChars.
+// ExtglobChars returns the extglob character map for the supplied glob
+// character set.
 func ExtglobChars(chars GlobChars) map[byte]ExtglobType {
 	return map[byte]ExtglobType{
 		'!': {Type: "negate", Open: "(?:", Close: ")" + chars.Star + ")"},

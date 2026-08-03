@@ -10,6 +10,18 @@ Run all benchmarks:
 go test -bench=. -run=^$ ./...
 ```
 
+## Current results
+
+The following numbers were collected on the current environment during verification:
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| BenchmarkSimple | 3193 | 0 | 0 |
+| BenchmarkGlobstar | 4763 | 0 | 0 |
+| BenchmarkBraces | 7258 | 0 | 0 |
+| BenchmarkExtglob | 4732 | 0 | 0 |
+| BenchmarkPosixClass | 3925 | 0 | 0 |
+
 ## Suggested benchmark categories
 
 - simple globs

@@ -7,7 +7,7 @@ func isPathSeparator(code int) bool {
 }
 
 func depth(token *ScanToken) {
-	if token.IsPrefix != true {
+	if !token.IsPrefix {
 		if token.IsGlobstar {
 			token.Depth = 0
 		} else {
