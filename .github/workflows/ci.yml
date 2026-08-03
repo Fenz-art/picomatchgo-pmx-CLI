@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+        run: GOTOOLCHAIN=go1.22.12 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
 
       - name: Format check
         run: gofmt -w $(find . -name '*.go' -not -path './.git/*') && git diff --exit-code
