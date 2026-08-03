@@ -1263,7 +1263,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 	for state.Brackets > 0 {
 		if opts.StrictBrackets {
-			return ParseState{}, fmt.Errorf(syntaxError("closing", "]"))
+			return ParseState{}, fmt.Errorf("%s", syntaxError("closing", "]"))
 		}
 		state.Output = EscapeLast(state.Output, "[", len(state.Output)-1)
 		decrement("brackets")
@@ -1271,7 +1271,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 	for state.Parens > 0 {
 		if opts.StrictBrackets {
-			return ParseState{}, fmt.Errorf(syntaxError("closing", ")"))
+			return ParseState{}, fmt.Errorf("%s", syntaxError("closing", ")"))
 		}
 		state.Output = EscapeLast(state.Output, "(", len(state.Output)-1)
 		decrement("parens")
@@ -1279,7 +1279,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 	for state.Braces > 0 {
 		if opts.StrictBrackets {
-			return ParseState{}, fmt.Errorf(syntaxError("closing", "}"))
+			return ParseState{}, fmt.Errorf("%s", syntaxError("closing", "}"))
 		}
 		state.Output = EscapeLast(state.Output, "{", len(state.Output)-1)
 		decrement("braces")
