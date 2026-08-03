@@ -1,4 +1,4 @@
-.PHONY: fmt lint vet test cover bench fuzz
+.PHONY: fmt lint vet test cover bench fuzz wasm
 
 fmt:
 	go fmt ./...
@@ -21,3 +21,6 @@ bench:
 
 fuzz:
 	go test -fuzz=Fuzz -fuzztime=30s ./...
+
+wasm:
+	go build -o dashboard/public/picomatch.wasm cmd/wasm/main.go
