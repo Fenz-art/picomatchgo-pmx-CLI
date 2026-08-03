@@ -406,8 +406,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	QMARK_NO_DOT := chars.QmarkNoDot
 	STAR := chars.Star
 
-	var globstar func(o *Options) string
-	globstar = func(o *Options) string {
+	globstar := func(o *Options) string {
 		if o.NoGlobstar {
 			return STAR
 		}
@@ -657,7 +656,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 	fastpathDisabled := strings.HasPrefix(input, "*") || strings.HasPrefix(input, "!") || strings.ContainsAny(input, "/()[]{}\"")
 	if opts.Fastpaths && !fastpathDisabled {
-		output := input
+		var output string
 		backslashes := false
 		var builder strings.Builder
 		lastIndex := 0
@@ -748,10 +747,8 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 			if len(match) > 2 {
 				slashesCount = len(match)
 				state.Index += slashesCount
-				if slashesCount%2 != 0 {
-					// prepare string value with trailing backslash
-					// will be adjusted below
-				}
+				// prepare string value with trailing backslash
+				// will be adjusted below
 			}
 
 			var sval string
@@ -837,7 +834,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 		if value == ")" {
 			if state.Parens == 0 && opts.StrictBrackets {
-				return ParseState{}, fmt.Errorf(syntaxError("opening", "("))
+				return ParseState{}, fmt.Errorf("%s", syntaxError("opening", "("))
 			}
 
 			if len(extglobs) > 0 && state.Parens == extglobs[len(extglobs)-1].Parens+1 {
@@ -854,7 +851,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 		if value == "[" {
 			if opts.Nobracket || !strings.Contains(remaining(), "]") {
 				if !opts.Nobracket && opts.StrictBrackets {
-					return ParseState{}, fmt.Errorf(syntaxError("closing", "]"))
+					return ParseState{}, fmt.Errorf("%s", syntaxError("closing", "]"))
 				}
 				value = "["
 			} else {
@@ -873,7 +870,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 
 			if state.Brackets == 0 {
 				if opts.StrictBrackets {
-					return ParseState{}, fmt.Errorf(syntaxError("opening", "["))
+					return ParseState{}, fmt.Errorf("%s", syntaxError("opening", "["))
 				}
 				push(&ParseToken{Type: "text", Value: string(value), Output: `\]`})
 				continue
@@ -888,13 +885,13 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 			prev.Value += string(value)
 			appendOutput(&ParseToken{Value: string(value)})
 
-			if opts.LiteralBrackets == false || HasRegexChars(prevValue) {
+			if !opts.LiteralBrackets || HasRegexChars(prevValue) {
 				continue
 			}
 
 			escaped := EscapeRegex(prev.Value)
 			state.Output = state.Output[:len(state.Output)-len(prev.Value)]
-			if opts.LiteralBrackets == true {
+			if opts.LiteralBrackets {
 				state.Output += escaped
 				prev.Value = escaped
 				continue
