@@ -978,7 +978,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 			if len(braces) > 0 {
 				brace = braces[len(braces)-1]
 			}
-			if brace != nil && stack[len(stack)-1] == "braces" {
+			if brace != nil && len(stack) > 0 && stack[len(stack)-1] == "braces" {
 				brace.Comma = true
 				output = "|"
 			}
