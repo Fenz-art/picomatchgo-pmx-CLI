@@ -23,24 +23,65 @@ export default function Home() {
   const [labInput, setLabInput] = useState('main.go');
   const [labOutput, setLabOutput] = useState(null);
 
-  // Pipeline simulation state
+  // Workflow integration state
+  const [workflowRun, setWorkflowRun] = useState(null);
+  const [jobsState, setJobsState] = useState([]);
+  const [workflowArtifacts, setWorkflowArtifacts] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
   const [pipelineActive, setPipelineActive] = useState(false);
   const [pipelineLogs, setPipelineLogs] = useState([
-    'System ready. Click "TRIGGER INTEGRATION PIPELINE" to execute the test suite...'
+    'No run started yet. Click "TRIGGER INTEGRATION PIPELINE" to dispatch a live GitHub Actions run.'
   ]);
-  const [jobsState, setJobsState] = useState([
-    { id: 'fmt', name: 'Format Check', status: 'PASS' },
-    { id: 'vet', name: 'Vet checks (go vet)', status: 'PASS' },
-    { id: 'lint', name: 'Lint (golangci-lint)', status: 'PASS' },
-    { id: 'unit', name: 'Run unit tests', status: 'PASS' },
-    { id: 'race', name: 'Run race tests', status: 'PASS' },
-    { id: 'fuzz', name: 'Run fuzz targets', status: 'PASS' },
-    { id: 'bench', name: 'Run benchmarks', status: 'PASS' },
-    { id: 'wasm', name: 'Compile WebAssembly', status: 'PASS' }
-  ]);
+  const [workflowError, setWorkflowError] = useState(null);
 
   const canvasRef = useRef(null);
   const terminalRef = useRef(null);
+
+  const formatStatus = (status, conclusion) => {
+    if (!status) return 'UNKNOWN';
+    if (status === 'queued') return 'QUEUED';
+    if (status === 'in_progress') return 'RUNNING';
+    if (status === 'completed') {
+      if (conclusion === 'success') return 'PASS';
+      if (conclusion === 'failure') return 'FAIL';
+      if (conclusion === 'cancelled') return 'CANCELLED';
+      if (conclusion === 'skipped') return 'SKIPPED';
+      if (conclusion === 'neutral') return 'NEUTRAL';
+      return 'COMPLETED';
+    }
+    return String(status).toUpperCase();
+  };
+
+  const getRunBadge = (run) => {
+    if (!run) {
+      return { label: 'NO RUN', color: '#cbd5e1', bg: 'rgba(255,255,255,0.05)' };
+    }
+
+    if (run.status === 'queued') {
+      return { label: 'QUEUED', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' };
+    }
+
+    if (run.status === 'in_progress') {
+      return { label: 'RUNNING', color: '#00add8', bg: 'rgba(0,173,216,0.1)' };
+    }
+
+    if (run.status === 'completed') {
+      if (run.conclusion === 'success') {
+        return { label: 'PASSING', color: '#10b981', bg: 'rgba(16,185,129,0.1)' };
+      }
+      if (run.conclusion === 'failure') {
+        return { label: 'FAILED', color: '#ef4444', bg: 'rgba(248,113,113,0.1)' };
+      }
+      return { label: String(run.conclusion || 'COMPLETED').toUpperCase(), color: '#cbd5e1', bg: 'rgba(255,255,255,0.05)' };
+    }
+
+    return { label: String(run.status).toUpperCase(), color: '#cbd5e1', bg: 'rgba(255,255,255,0.05)' };
+  };
+
+  const workflowRunTitle = workflowRun?.name || 'production-ci';
+  const workflowRunMeta = workflowRun
+    ? `${workflowRun.head_branch || 'main'} · ${workflowRun.head_sha?.slice(0, 7) || 'unknown'}`
+    : 'No live run yet';
 
   // Auto scroll terminal logs
   useEffect(() => {
@@ -49,203 +90,90 @@ export default function Home() {
     }
   }, [pipelineLogs]);
 
-  const runPipeline = () => {
+  const runPipeline = async () => {
     if (pipelineActive) return;
     setPipelineActive(true);
+    setWorkflowError(null);
     setPipelineLogs([
-      '[SYS] Initializing validation pipeline on branch main...',
-      '[SYS] Git Commit: 9755273 (Production Release)',
-      '[SYS] Environment: Go v1.21.0 & Node.js v18.0.0',
-      '------------------------------------------------------------'
+      '[INFO] Dispatching production validation workflow to GitHub Actions...',
+      '[INFO] Waiting for workflow run to appear on the repository.',
     ]);
-    
-    setJobsState(jobs => jobs.map(j => ({ ...j, status: 'PENDING' })));
+    setWorkflowRun(null);
+    setJobsState([]);
+    setWorkflowArtifacts([]);
 
-    const steps = [
-      {
-        time: 400,
-        jobId: 'fmt',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 1/8] Checking code formatting...',
-          '$ go fmt ./...',
-        ]
-      },
-      {
-        time: 1000,
-        jobId: 'fmt',
-        jobStatus: 'PASS',
-        logs: [
-          'go fmt: no changes required. Code matches standard styles.',
-        ]
-      },
-      {
-        time: 1600,
-        jobId: 'vet',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 2/8] Vetting compiler codebase...',
-          '$ go vet ./...',
-        ]
-      },
-      {
-        time: 2200,
-        jobId: 'vet',
-        jobStatus: 'PASS',
-        logs: [
-          'go vet: all packages verified successfully.',
-        ]
-      },
-      {
-        time: 2800,
-        jobId: 'lint',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 3/8] Running golangci-lint...',
-          '$ golangci-lint run ./...',
-        ]
-      },
-      {
-        time: 3600,
-        jobId: 'lint',
-        jobStatus: 'PASS',
-        logs: [
-          'golangci-lint: 0 issues found.',
-        ]
-      },
-      {
-        time: 4200,
-        jobId: 'unit',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 4/8] Running Unit Test Suite...',
-          '$ go test -v ./...',
-          '=== RUN   TestGetGlobChars_Posix',
-          '--- PASS: TestGetGlobChars_Posix (0.00s)',
-        ]
-      },
-      {
-        time: 4800,
-        jobId: 'unit',
-        jobStatus: 'RUNNING',
-        logs: [
-          '=== RUN   TestPosixRegexSource',
-          '--- PASS: TestPosixRegexSource (0.00s)',
-          '=== RUN   TestExtglobChars',
-          '--- PASS: TestExtglobChars (0.00s)',
-        ]
-      },
-      {
-        time: 5400,
-        jobId: 'unit',
-        jobStatus: 'PASS',
-        logs: [
-          '=== RUN   TestIsMatch_Basic',
-          '--- PASS: TestIsMatch_Basic (0.02s)',
-          'PASS',
-          'ok  	github.com/debayansamal/port-mortem-picomatch-go	0.182s'
-        ]
-      },
-      {
-        time: 6000,
-        jobId: 'race',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 5/8] Running Race Condition Detector...',
-          '$ go test -race ./...',
-        ]
-      },
-      {
-        time: 7200,
-        jobId: 'race',
-        jobStatus: 'PASS',
-        logs: [
-          'PASS',
-          'ok  	github.com/debayansamal/port-mortem-picomatch-go	1.092s'
-        ]
-      },
-      {
-        time: 7800,
-        jobId: 'fuzz',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 6/8] Running Fuzz Targets...',
-          '$ go test -fuzz=FuzzParse -fuzztime=5s',
-        ]
-      },
-      {
-        time: 9000,
-        jobId: 'fuzz',
-        jobStatus: 'RUNNING',
-        logs: [
-          'fuzz: elapsed: 3s, execs: 18432 (6144/sec), new interesting: 1 (total: 7)',
-        ]
-      },
-      {
-        time: 10000,
-        jobId: 'fuzz',
-        jobStatus: 'PASS',
-        logs: [
-          'fuzz: elapsed: 5s, execs: 31204 (6380/sec), new interesting: 0 (total: 7)',
-          'PASS',
-          'ok  	github.com/debayansamal/port-mortem-picomatch-go	5.210s'
-        ]
-      },
-      {
-        time: 10400,
-        jobId: 'bench',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 7/8] Running Performance Benchmarks...',
-          '$ go test -bench=. -benchmem',
-        ]
-      },
-      {
-        time: 11400,
-        jobId: 'bench',
-        jobStatus: 'PASS',
-        logs: [
-          'BenchmarkIsMatch-12    	 2840192	       412.3 ns/op	     128 B/op	       4 allocs/op',
-          'BenchmarkScan-12       	 4902102	       243.8 ns/op	      64 B/op	       2 allocs/op',
-          'BenchmarkParse-12      	 1984210	       591.2 ns/op	     256 B/op	       8 allocs/op',
-          'PASS',
-          'ok  	github.com/debayansamal/port-mortem-picomatch-go	3.412s'
-        ]
-      },
-      {
-        time: 12000,
-        jobId: 'wasm',
-        jobStatus: 'RUNNING',
-        logs: [
-          '[STEP 8/8] Compiling WebAssembly Target...',
-          '$ GOOS=js GOARCH=wasm go build -o public/picomatch.wasm cmd/wasm/main.go',
-        ]
-      },
-      {
-        time: 13000,
-        jobId: 'wasm',
-        jobStatus: 'PASS',
-        logs: [
-          'wasm build: compilation complete.',
-          'Output size: 1.34 MB (gzip 342 KB) - Success!',
-          '------------------------------------------------------------',
-          '[SUCCESS] PIPELINE RUN COMPLETED SUCCESSFULLY.',
-        ]
+    try {
+      const response = await fetch('/api/workflows', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ workflow: 'production-ci' }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Workflow dispatch failed');
       }
-    ];
 
-    steps.forEach(step => {
-      setTimeout(() => {
-        setJobsState(jobs => 
-          jobs.map(j => j.id === step.jobId ? { ...j, status: step.jobStatus } : j)
-        );
-        setPipelineLogs(prev => [...prev, ...step.logs]);
-        if (step.jobId === 'wasm' && step.jobStatus === 'PASS') {
-          setPipelineActive(false);
-        }
-      }, step.time);
-    });
+      const run = payload.run || payload;
+      if (!run?.id) {
+        throw new Error('GitHub Actions dispatch returned no run ID.');
+      }
+
+      setWorkflowRun(run);
+      setJobsState(run.jobs || []);
+      setPipelineLogs((prev) => [
+        ...prev,
+        `[INFO] Workflow dispatched: run ${run.id} (${run.status || 'queued'})`,
+      ]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setWorkflowError(message);
+      setPipelineLogs((prev) => [...prev, `[ERROR] ${message}`]);
+      setPipelineActive(false);
+    }
   };
+
+  useEffect(() => {
+    if (!workflowRun || !pipelineActive) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/workflows/${workflowRun.id}`);
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Workflow refresh failed');
+        }
+
+        setWorkflowRun(payload);
+        setJobsState(payload.jobs || []);
+        setWorkflowArtifacts(payload.artifacts || []);
+
+        setPipelineLogs((prev) => [
+          ...prev,
+          `[INFO] workflow status: ${payload.status || 'unknown'} - conclusion: ${payload.conclusion || 'pending'}`,
+        ]);
+
+        if (payload.status === 'completed') {
+          setPipelineLogs((prev) => [
+            ...prev,
+            `[INFO] Workflow run completed: ${payload.conclusion || 'unknown'}`,
+          ]);
+          setPipelineActive(false);
+          clearInterval(interval);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setWorkflowError(message);
+        setPipelineLogs((prev) => [...prev, `[ERROR] ${message}`]);
+        setPipelineActive(false);
+        clearInterval(interval);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [workflowRun, pipelineActive]);
 
 
 
@@ -523,14 +451,14 @@ export default function Home() {
                 alignItems: 'center',
                 gap: '8px',
                 padding: '8px 16px',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid #10b981',
+                backgroundColor: getRunBadge(workflowRun).bg,
+                border: `1px solid ${getRunBadge(workflowRun).color}`,
                 borderRadius: '6px',
                 fontSize: '0.85rem',
-                color: '#10b981'
+                color: getRunBadge(workflowRun).color
               }}>
                 <CheckCircle2 size={16} />
-                <span>Go CI: PASSING</span>
+                <span>{workflowRun ? `${workflowRunTitle} • ${getRunBadge(workflowRun).label}` : 'No active workflow'}</span>
               </div>
             </div>
           </header>
@@ -898,36 +826,53 @@ export default function Home() {
                   </button>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {jobsState.length === 0 && (
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '12px', border: '1px dashed var(--panel-border)', borderRadius: '6px' }}>
+                        No jobs have been loaded yet. Trigger the pipeline to fetch real GitHub Actions jobs.
+                      </div>
+                    )}
+
                     {jobsState.map((job, idx) => {
+                      const statusLabel = formatStatus(job.status?.toLowerCase(), job.conclusion?.toLowerCase());
                       let badgeColor = 'var(--text-muted)';
                       let badgeBg = 'rgba(255,255,255,0.02)';
                       let badgeBorder = 'var(--panel-border)';
-                      if (job.status === 'RUNNING') {
+
+                      if (statusLabel === 'RUNNING') {
                         badgeColor = '#00add8';
                         badgeBg = 'rgba(0,173,216,0.1)';
                         badgeBorder = '#00add8';
-                      } else if (job.status === 'PASS') {
+                      } else if (statusLabel === 'PASS' || statusLabel === 'PASSING' || statusLabel === 'SUCCESS') {
                         badgeColor = '#10b981';
                         badgeBg = 'rgba(16,185,129,0.1)';
                         badgeBorder = '#10b981';
-                      } else if (job.status === 'PENDING') {
-                        badgeColor = 'var(--text-muted)';
-                        badgeBg = 'rgba(255,255,255,0.02)';
-                        badgeBorder = 'var(--panel-border)';
+                      } else if (statusLabel === 'QUEUED' || statusLabel === 'PENDING') {
+                        badgeColor = '#f59e0b';
+                        badgeBg = 'rgba(245,158,11,0.1)';
+                        badgeBorder = '#f59e0b';
+                      } else if (statusLabel === 'FAILED' || statusLabel === 'CANCELLED') {
+                        badgeColor = '#ef4444';
+                        badgeBg = 'rgba(248,113,113,0.1)';
+                        badgeBorder = '#ef4444';
                       }
 
                       return (
-                        <div key={idx} style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center', 
-                          padding: '10px 14px', 
-                          backgroundColor: 'rgba(255,255,255,0.01)', 
-                          border: '1px solid var(--panel-border)', 
-                          borderRadius: '6px' 
-                        }}>
-                          <span style={{ fontSize: '0.85rem', color: job.status === 'RUNNING' ? '#fff' : 'var(--foreground)' }}>
-                            {job.name}
+                        <button
+                          key={job.id || idx}
+                          onClick={() => setSelectedJob(job)}
+                          style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center', 
+                            padding: '10px 14px', 
+                            backgroundColor: selectedJob?.id === job.id ? 'rgba(0,173,216,0.12)' : 'rgba(255,255,255,0.01)',
+                            border: '1px solid var(--panel-border)', 
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>
+                            {job.name || job.display_name || job.id}
                           </span>
                           <span style={{ 
                             fontSize: '0.75rem', 
@@ -938,9 +883,9 @@ export default function Home() {
                             padding: '2px 8px',
                             borderRadius: '4px'
                           }}>
-                            {job.status}
+                            {statusLabel}
                           </span>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -950,10 +895,10 @@ export default function Home() {
                 <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', height: '500px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase' }}>
-                      Integration Logs Terminal
+                      Foundry Event Feed
                     </h3>
                     <span style={{ fontSize: '0.75rem', color: '#00ffcc', fontFamily: 'monospace' }}>
-                      bash-5.1$
+                      events.log
                     </span>
                   </div>
                   <pre 

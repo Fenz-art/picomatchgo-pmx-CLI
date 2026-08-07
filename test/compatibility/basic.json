@@ -1,0 +1,10 @@
+{
+  "name": "basic",
+  "cases": [
+    {"pattern": "*.js", "input": "foo.js", "expect": true},
+    {"pattern": "*.js", "input": "foo.txt", "expect": false},
+    {"pattern": "**/*.go", "input": "src/main.go", "expect": true},
+    {"pattern": "**/*.go", "input": "src/main.js", "expect": false},
+    {"pattern": "*.js", "input": ".foo.js", "options": {"dot": true}, "expect": true}
+  ]
+}
