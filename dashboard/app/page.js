@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { 
   Play, Shield, Activity, RefreshCw, Layers, CheckCircle2, 
   XCircle, ChevronRight, Download, Code2, AlertTriangle, Cpu, Globe
@@ -108,7 +108,20 @@ export default function Home() {
     { id: 'ci', name: 'pmx ci --json', category: 'CI', mode: 'local' },
   ];
 
-  const runValidationSuite = async (selectedIds = null) => {
+  const parseJsonResponse = useCallback(async (response) => {
+    const raw = await response.text();
+    if (!raw) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      return { error: raw, parseError: err instanceof Error ? err.message : String(err) };
+    }
+  }, []);
+
+  const runValidationSuite = useCallback(async (selectedIds = null) => {
     setValidationLoading(true);
     setValidationError(null);
 
@@ -202,19 +215,6 @@ export default function Home() {
   };
 
   // Auto scroll terminal logs
-  const parseJsonResponse = async (response) => {
-    const raw = await response.text();
-    if (!raw) {
-      return {};
-    }
-
-    try {
-      return JSON.parse(raw);
-    } catch (err) {
-      return { error: raw, parseError: err instanceof Error ? err.message : String(err) };
-    }
-  };
-
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
@@ -493,13 +493,13 @@ export default function Home() {
     if ((currentTab === 'validation' || currentTab === 'cli') && validationResults.length === 0 && !validationLoading) {
       runValidationSuite();
     }
-  }, [currentTab]);
+  }, [currentTab, runValidationSuite, validationLoading, validationResults.length]);
 
   useEffect(() => {
     if (currentTab === 'doctor' && !doctorReport && !validationLoading) {
       runValidationSuite(['doctorJson']);
     }
-  }, [currentTab, doctorReport, validationLoading]);
+  }, [currentTab, doctorReport, runValidationSuite, validationLoading]);
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>

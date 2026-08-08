@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	picomatch "github.com/Fenz-art/picomatchgo-pmx-CLI"
 )
@@ -245,25 +247,55 @@ func formatParseTokenName(tokenType string) string {
 	}
 }
 
-func runBench(_ []string) int {
+func runBench(args []string) int {
+	fs := flag.NewFlagSet("bench", flag.ContinueOnError)
+	compare := fs.String("compare", "", "baseline benchmark JSON file")
+	fs.SetOutput(os.Stdout)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
 	fmt.Println("PICOMATCH BENCHMARK")
 	fmt.Println(strings.Repeat("─", 50))
 	fmt.Println()
-	cmd := exec.Command("go", "test", "-run=^$", "-bench=.", "-benchmem")
+
+	cmdArgs := []string{"test", "-run=^$", "-bench=.", "-benchmem", "-count=1"}
+	cmd := exec.Command("go", cmdArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "benchmark run failed: %v\n", err)
 		return 1
 	}
+
+	if *compare != "" {
+		fmt.Printf("note: benchmark compare (%s) is not implemented in this release\n", *compare)
+	}
+
 	return 0
 }
 
-func runFuzz(_ []string) int {
+func runFuzz(args []string) int {
+	fs := flag.NewFlagSet("fuzz", flag.ContinueOnError)
+	target := fs.String("target", "FuzzScan", "fuzz target name")
+	timeArg := fs.String("time", "15s", "fuzz duration")
+	fs.SetOutput(os.Stdout)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	switch *target {
+	case "FuzzScan", "FuzzParse", "FuzzIsMatch":
+	default:
+		fmt.Fprintf(os.Stderr, "unknown fuzz target: %s\n", *target)
+		return 2
+	}
+
 	fmt.Println("PICOMATCH FUZZ CAMPAIGN")
 	fmt.Println(strings.Repeat("─", 50))
 	fmt.Println()
-	cmd := exec.Command("go", "test", "-run=^$", "-fuzz=FuzzScan", "-fuzztime=1s")
+
+	cmd := exec.Command("go", "test", "-run=^$", "-fuzz="+*target, "-fuzztime="+*timeArg, "./...")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -373,7 +405,11 @@ func runDoctor(args []string) int {
 			fmt.Fprintf(os.Stderr, "doctor target failed: %v\n", err)
 			return 1
 		}
-		defer os.Chdir(oldWd)
+		defer func() {
+			if err := os.Chdir(oldWd); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to restore working directory: %v\n", err)
+			}
+		}()
 	}
 
 	report := buildDoctorReport()
@@ -603,16 +639,6 @@ func buildAgentActions(diags []doctorDiagnostic) []agentAction {
 	return out
 }
 
-func agentResultForDiagnostics(diags []doctorDiagnostic) string {
-	if agentHasSeverity(diags, "fail") {
-		return "fail"
-	}
-	if agentHasSeverity(diags, "warn") {
-		return "warn"
-	}
-	return "pass"
-}
-
 func agentStatusForDiagnostics(diags []doctorDiagnostic) string {
 	if agentHasSeverity(diags, "fail") {
 		return "fail"
@@ -621,18 +647,6 @@ func agentStatusForDiagnostics(diags []doctorDiagnostic) string {
 		return "warning"
 	}
 	return "healthy"
-}
-
-func agentValidationStatus(diags []doctorDiagnostic) string {
-	status := agentStatusForDiagnostics(diags)
-	switch status {
-	case "fail":
-		return "fail"
-	case "warning":
-		return "warn"
-	default:
-		return "pass"
-	}
 }
 
 func agentHasSeverity(diags []doctorDiagnostic, severity string) bool {
@@ -650,29 +664,6 @@ func agentDiagnosticsBySeverity(diags []doctorDiagnostic, severity string) []doc
 		if diag.Severity == severity {
 			out = append(out, diag)
 		}
-	}
-	return out
-}
-
-func agentNextActions(diags []doctorDiagnostic) []string {
-	if len(diags) == 0 {
-		return []string{"No blocking actions required."}
-	}
-	out := make([]string, 0, len(diags))
-	for _, diag := range diags {
-		if diag.Title == "" {
-			continue
-		}
-		if diag.Severity == "fail" {
-			out = append(out, "Fix "+diag.ID+": "+diag.Title)
-			continue
-		}
-		if len(out) < 3 {
-			out = append(out, "Review "+diag.ID+": "+diag.Title)
-		}
-	}
-	if len(out) == 0 {
-		return []string{"No blocking actions required."}
 	}
 	return out
 }
@@ -762,13 +753,6 @@ func buildDoctorReport() doctorReport {
 	}
 
 	return report
-}
-
-func detectFileStatus(name string) string {
-	if fileExists(name) {
-		return "pass"
-	}
-	return "missing"
 }
 
 func detectProjectEcosystem() string {
@@ -1020,7 +1004,7 @@ func formatDoctorEcosystem(value string) string {
 		if value == "" {
 			return "Unknown"
 		}
-		return strings.Title(value)
+		return titleCase(value)
 	}
 }
 
@@ -1028,14 +1012,18 @@ func formatDoctorPackageManager(value string) string {
 	if value == "" {
 		return "Unknown"
 	}
-	return strings.Title(value)
+	return titleCase(value)
 }
 
-func determineStatus(ok bool) string {
-	if ok {
-		return "PASS"
+func titleCase(value string) string {
+	if value == "" {
+		return ""
 	}
-	return "WARN"
+	r, size := utf8.DecodeRuneInString(value)
+	if r == utf8.RuneError {
+		return value
+	}
+	return string(unicode.ToTitle(r)) + value[size:]
 }
 
 func fileExists(path string) bool {
@@ -1046,17 +1034,6 @@ func fileExists(path string) bool {
 func toolExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
-}
-
-func detectProjectFiles() int {
-	files := []string{"package.json", "tsconfig.json", "eslint.config.js", "go.mod", "Cargo.toml", "pyproject.toml", "pom.xml"}
-	count := 0
-	for _, name := range files {
-		if fileExists(name) {
-			count++
-		}
-	}
-	return count
 }
 
 func filepathBase(path string) string {
@@ -1309,20 +1286,16 @@ func runCIReport(jsonOutput bool, ciMode bool) int {
 		fmt.Fprintf(os.Stderr, "ci repository discovery failed: %v\n", rootErr)
 		return 1
 	}
-	packages, err := regressionTargetPackages()
-	unitArgs := []string{"test", "./..."}
-	if err == nil && len(packages) > 0 {
-		unitArgs = append([]string{"test"}, packages...)
-	}
 	checks := []struct {
 		name string
 		args []string
 	}{
 		{name: "Format", args: []string{"gofmt", "-l", "."}},
 		{name: "Vet", args: []string{"go", "vet", "./..."}},
-		{name: "Unit", args: append([]string{"go"}, unitArgs...)},
-		{name: "Race", args: append([]string{"go", "test", "-race"}, packages...)},
-		{name: "CLI", args: []string{"go", "run", "./cmd/pmx", "match", "*.go", "main.go"}},
+		{name: "Unit", args: []string{"go", "test", "-count=1", "./..."}},
+		{name: "Race", args: []string{"go", "test", "-count=1", "-race", "./..."}},
+		{name: "Build", args: []string{"go", "build", "./..."}},
+		{name: "CLI", args: []string{"go", "run", "./cmd/pmx", "match", "**/*.go", "cmd/pmx/main.go"}},
 		{name: "Compatibility", args: []string{"go", "run", "./cmd/pmx", "compat", "--suite", "basic"}},
 		{name: "Doctor", args: []string{"go", "run", "./cmd/pmx", "doctor", "--ci"}},
 	}

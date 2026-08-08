@@ -1,0 +1,9 @@
+
+===== Preparing output directory =====
+
+===== Running gofmt =====
+
+===== Running go vet =====
+
+===== Running unit tests =====
+ok  	github.com/Fenz-art/picomatchgo-pmx-CLI	0.022s
