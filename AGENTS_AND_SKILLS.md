@@ -10,6 +10,8 @@ The agent performs a bounded inspect → diagnose → fix → check → regressi
 
 Definition: `.codex/skills/pmx-doctor-adlc/SKILL.md`
 
+The skill defines the repeatable PMX diagnostic workflow for JSON-based doctor and ADLC validations. It executes `pmx doctor --json`, `pmx agent inspect --json`, and `pmx agent check --json`, then uses the command result payloads to drive repair, regression, and final validation reporting.
+
 This skill defines the repeatable PMX diagnostic workflow. It uses doctor and ADLC JSON contracts rather than scraping prose, distinguishes warnings from failures, executes the relevant regression command after a repair, and reports the actual exit status and captured evidence.
 
 ## Lifecycle

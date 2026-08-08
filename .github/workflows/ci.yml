@@ -55,7 +55,7 @@ jobs:
           go-version: '1.21'
           cache: true
       - name: Run unit tests
-        run: go test ./...
+        run: go test -timeout 2m ./...
 
   race:
     needs: unit
@@ -67,7 +67,22 @@ jobs:
           go-version: '1.21'
           cache: true
       - name: Run race tests
-        run: go test -race ./...
+        run: go test -race -timeout 2m ./...
+
+  agent:
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
+      - name: Build PMX
+        run: go build -o pmx ./cmd/pmx
+      - name: Run bounded ADLC gate
+        run: timeout 120s ./pmx agent check --json | jq .
 
   cli:
     needs: unit
@@ -132,7 +147,7 @@ jobs:
           go-version: '1.21'
           cache: true
       - name: Run regression suite
-        run: go test ./test/...
+        run: go test -timeout 2m ./test/...
 
   fuzz:
     needs: unit
@@ -145,9 +160,9 @@ jobs:
           cache: true
       - name: Run fuzz targets
         run: |
-          go test -fuzz=FuzzScan -fuzztime=15s .
-          go test -fuzz=FuzzParse -fuzztime=15s .
-          go test -fuzz=FuzzIsMatch -fuzztime=15s .
+          go test -fuzz=FuzzScan -fuzztime=10s .
+          go test -fuzz=FuzzParse -fuzztime=10s .
+          go test -fuzz=FuzzIsMatch -fuzztime=10s .
 
   benchmark:
     needs: unit

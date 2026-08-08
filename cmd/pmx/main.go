@@ -374,7 +374,9 @@ func runDoctor(args []string) int {
 			fmt.Fprintf(os.Stderr, "doctor target failed: %v\n", err)
 			return 1
 		}
-		defer os.Chdir(oldWd)
+		defer func() {
+			_ = os.Chdir(oldWd)
+		}()
 	}
 
 	report := buildDoctorReport()
@@ -541,7 +543,7 @@ func runAgentGateCheck(name string, args []string) agentCheckEntry {
 	if err != nil {
 		return agentCheckEntry{Name: name, Status: "fail", Detail: err.Error()}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, executable, args...)
 	cmd.Dir = root
@@ -555,7 +557,7 @@ func runAgentGateCheck(name string, args []string) agentCheckEntry {
 	detail := strings.TrimSpace(string(out))
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			return agentCheckEntry{Name: name, Status: "fail", Detail: "timeout after 60s"}
+			return agentCheckEntry{Name: name, Status: "fail", Detail: "timeout after 45s"}
 		}
 		if detail == "" {
 			detail = err.Error()
@@ -614,16 +616,6 @@ func buildAgentActions(diags []doctorDiagnostic) []agentAction {
 	return out
 }
 
-func agentResultForDiagnostics(diags []doctorDiagnostic) string {
-	if agentHasSeverity(diags, "fail") {
-		return "fail"
-	}
-	if agentHasSeverity(diags, "warn") {
-		return "warn"
-	}
-	return "pass"
-}
-
 func agentStatusForDiagnostics(diags []doctorDiagnostic) string {
 	if agentHasSeverity(diags, "fail") {
 		return "fail"
@@ -632,18 +624,6 @@ func agentStatusForDiagnostics(diags []doctorDiagnostic) string {
 		return "warning"
 	}
 	return "healthy"
-}
-
-func agentValidationStatus(diags []doctorDiagnostic) string {
-	status := agentStatusForDiagnostics(diags)
-	switch status {
-	case "fail":
-		return "fail"
-	case "warning":
-		return "warn"
-	default:
-		return "pass"
-	}
 }
 
 func agentHasSeverity(diags []doctorDiagnostic, severity string) bool {
@@ -661,29 +641,6 @@ func agentDiagnosticsBySeverity(diags []doctorDiagnostic, severity string) []doc
 		if diag.Severity == severity {
 			out = append(out, diag)
 		}
-	}
-	return out
-}
-
-func agentNextActions(diags []doctorDiagnostic) []string {
-	if len(diags) == 0 {
-		return []string{"No blocking actions required."}
-	}
-	out := make([]string, 0, len(diags))
-	for _, diag := range diags {
-		if diag.Title == "" {
-			continue
-		}
-		if diag.Severity == "fail" {
-			out = append(out, "Fix "+diag.ID+": "+diag.Title)
-			continue
-		}
-		if len(out) < 3 {
-			out = append(out, "Review "+diag.ID+": "+diag.Title)
-		}
-	}
-	if len(out) == 0 {
-		return []string{"No blocking actions required."}
 	}
 	return out
 }
@@ -773,13 +730,6 @@ func buildDoctorReport() doctorReport {
 	}
 
 	return report
-}
-
-func detectFileStatus(name string) string {
-	if fileExists(name) {
-		return "pass"
-	}
-	return "missing"
 }
 
 func detectProjectEcosystem() string {
@@ -1028,25 +978,19 @@ func formatDoctorEcosystem(value string) string {
 	case "python":
 		return "Python"
 	default:
-		if value == "" {
-			return "Unknown"
-		}
-		return strings.Title(value)
+		return formatDoctorLabel(value)
 	}
 }
 
 func formatDoctorPackageManager(value string) string {
+	return formatDoctorLabel(value)
+}
+
+func formatDoctorLabel(value string) string {
 	if value == "" {
 		return "Unknown"
 	}
-	return strings.Title(value)
-}
-
-func determineStatus(ok bool) string {
-	if ok {
-		return "PASS"
-	}
-	return "WARN"
+	return strings.ToUpper(value[:1]) + value[1:]
 }
 
 func fileExists(path string) bool {
@@ -1057,17 +1001,6 @@ func fileExists(path string) bool {
 func toolExists(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
-}
-
-func detectProjectFiles() int {
-	files := []string{"package.json", "tsconfig.json", "eslint.config.js", "go.mod", "Cargo.toml", "pyproject.toml", "pom.xml"}
-	count := 0
-	for _, name := range files {
-		if fileExists(name) {
-			count++
-		}
-	}
-	return count
 }
 
 func filepathBase(path string) string {

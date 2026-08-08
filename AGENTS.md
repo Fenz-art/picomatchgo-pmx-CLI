@@ -1,6 +1,6 @@
 # PMX Engineering Rules
 
-PMX is a Picomatch-compatible Go runtime, a command-line validation product, and a Foundry dashboard. Preserve the boundary between the runtime, CLI, dashboard API, and browser UI.
+PMX is a Picomatch-compatible Go runtime, a command-line validation product, and a Foundry dashboard. Preserve the boundary between the runtime, CLI, dashboard API, and browser UI. Custom agent and skill definitions live under `.codex/` and are the source of truth for automated validation workflows.
 
 ## Required workflow
 

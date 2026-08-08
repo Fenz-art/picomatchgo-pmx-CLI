@@ -217,13 +217,13 @@ func TestPMXAgentInspectJSON(t *testing.T) {
 }
 
 func TestPMXAgentCheckJSON(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "go", "run", ".", "agent", "check", "--json")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			t.Fatalf("pmx agent check --json exceeded its 90s test budget; the agent gate must not recursively run the full CI suite\n%s", out)
+			t.Fatalf("pmx agent check --json exceeded its 45s test budget; the agent gate must not recursively run the full CI suite\n%s", out)
 		}
 		t.Fatalf("pmx agent check --json failed: %v\n%s", err, out)
 	}
@@ -237,13 +237,13 @@ func TestPMXAgentCheckJSON(t *testing.T) {
 }
 
 func TestPMXAgentCheckStrictContract(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "go", "run", ".", "agent", "check", "--json")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
-			t.Fatalf("pmx agent check --json exceeded its 90s test budget; the agent gate must not recursively run the full CI suite\n%s", out)
+			t.Fatalf("pmx agent check --json exceeded its 45s test budget; the agent gate must not recursively run the full CI suite\n%s", out)
 		}
 		t.Fatalf("pmx agent check --json failed: %v\n%s", err, out)
 	}
