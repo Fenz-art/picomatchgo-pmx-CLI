@@ -241,9 +241,9 @@ func workflowLogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"demo":  true,
+		"demo":   true,
 		"notice": "Legacy static dashboard fixture; these are not live CI logs.",
-		"runId": strings.TrimPrefix(r.URL.Path, "/api/logs/"),
+		"runId":  strings.TrimPrefix(r.URL.Path, "/api/logs/"),
 		"lines": []string{
 			"[12:31:22] checkout started",
 			"[12:31:25] actions/checkout@v4",
@@ -263,9 +263,9 @@ func workflowArtifactsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"demo":      true,
-		"notice":    "Legacy static dashboard fixture; these are not live CI artifacts.",
-		"runId": strings.TrimPrefix(r.URL.Path, "/api/artifacts/"),
+		"demo":   true,
+		"notice": "Legacy static dashboard fixture; these are not live CI artifacts.",
+		"runId":  strings.TrimPrefix(r.URL.Path, "/api/artifacts/"),
 		"artifacts": []map[string]interface{}{
 			{"name": "coverage.out", "url": "/artifacts/coverage.out"},
 			{"name": "benchmark.json", "url": "/artifacts/benchmark.json"},
