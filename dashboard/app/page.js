@@ -169,6 +169,8 @@ export default function Home() {
 
   const validationMap = Object.fromEntries(validationResults.map((item) => [item.id, item]));
   const doctorReport = validationMap.doctorJson?.parsed || null;
+  const regressionEvidence = validationMap.regression;
+  const reliabilityEvidence = ['bench', 'fuzz'].map((id) => validationMap[id]).filter(Boolean);
 
   const formatDuration = (start, end) => {
     if (!start) return '—';
@@ -859,44 +861,19 @@ export default function Home() {
             )}
 
             {currentTab === 'regressions' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
-                {[
-                  { title: 'Dotfiles', cases: ['*.js -> .foo.js (false)', '.* -> .foo (true)', '**/.* -> a/b/.foo (true)'] },
-                  { title: 'Globstars', cases: ['**/*.js -> a/b/c.js (true)', 'foo/**/bar -> foo/a/b/bar (true)', '**/a -> a (true)'] },
-                  { title: 'Brace Expansion', cases: ['{a,b} -> a (true)', 'foo/{bar,baz}.js -> foo/bar.js (true)', '{1..3} -> 2 (true)'] },
-                  { title: 'Negation', cases: ['!*.js -> foo.txt (true)', '!foo/* -> bar/baz (true)', '!(foo) -> bar (true)'] },
-                  { title: 'Windows Normalization', cases: ['foo/* -> foo\\bar (true)', 'foo/*/*.js -> foo\\bar\\baz.js (true)'] }
-                ].map((suite, i) => (
-                  <div key={i} className="glass-panel" style={{ padding: '24px' }}>
-                    <h4 style={{ fontSize: '0.9rem', marginBottom: '12px', fontWeight: '700', textTransform: 'uppercase', color: '#00add8' }}>{suite.title}</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {suite.cases.map((cs, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
-                          <CheckCircle2 size={12} style={{ color: '#10b981' }} />
-                          <span>{cs}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              <div className="glass-panel" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
+                  <div><h3 style={{ fontSize: '1rem', textTransform: 'uppercase' }}>Regression execution</h3><p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Results are produced by <code>pmx regression --json</code>; this view never uses fixture outcomes as live evidence.</p></div>
+                  <button onClick={() => runValidationSuite(['regression'])} disabled={validationLoading} style={{ padding: '10px 14px', border: '1px solid #00add8', borderRadius: '6px', background: 'transparent', color: '#00add8', fontWeight: '700', cursor: validationLoading ? 'not-allowed' : 'pointer' }}>{validationLoading ? 'RUNNING...' : 'RUN REGRESSION'}</button>
+                </div>
+                {regressionEvidence ? <><div style={{ color: regressionEvidence.status === 'pass' ? '#10b981' : regressionEvidence.status === 'warn' ? '#f59e0b' : '#ef4444', fontWeight: '700', marginBottom: '12px' }}>{regressionEvidence.status.toUpperCase()} · exit {regressionEvidence.exitCode} · {regressionEvidence.durationMs} ms</div><pre style={{ maxHeight: '420px', overflow: 'auto', whiteSpace: 'pre-wrap', padding: '14px', background: 'rgba(0,0,0,0.35)', borderRadius: '8px', border: '1px solid var(--panel-border)' }}>{regressionEvidence.output || regressionEvidence.stderr || 'Command returned no output.'}</pre></> : <div style={{ color: 'var(--text-muted)', border: '1px dashed var(--panel-border)', borderRadius: '8px', padding: '14px' }}>No regression execution has been run in this session.</div>}
               </div>
             )}
 
             {currentTab === 'matrix' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
-                {[
-                  ['BenchmarkScan', '15.2 ns/op'],
-                  ['BenchmarkParse', '28.0 ns/op'],
-                  ['BenchmarkMatch', '19.0 ns/op'],
-                  ['FuzzScan', '2,135,421 execs'],
-                  ['FuzzParse', '2,135,421 execs'],
-                  ['FuzzIsMatch', '2,135,421 execs']
-                ].map(([name, value]) => (
-                  <div key={name} className="glass-panel" style={{ padding: '24px' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase', marginBottom: '8px' }}>{name}</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: '700' }}>{value}</div>
-                  </div>
-                ))}
+              <div className="glass-panel" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}><div><h3 style={{ fontSize: '1rem', textTransform: 'uppercase' }}>Reliability execution matrix</h3><p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>Benchmark and fuzz output appears only after the commands finish.</p></div><button onClick={() => runValidationSuite(['bench', 'fuzz'])} disabled={validationLoading} style={{ padding: '10px 14px', border: '1px solid #00add8', borderRadius: '6px', background: 'transparent', color: '#00add8', fontWeight: '700', cursor: validationLoading ? 'not-allowed' : 'pointer' }}>{validationLoading ? 'RUNNING...' : 'RUN RELIABILITY CHECKS'}</button></div>
+                {reliabilityEvidence.length ? <div style={{ display: 'grid', gap: '12px' }}>{reliabilityEvidence.map((entry) => <div key={entry.id} style={{ border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '14px' }}><div style={{ fontWeight: '700', color: entry.status === 'pass' ? '#10b981' : entry.status === 'warn' ? '#f59e0b' : '#ef4444', marginBottom: '8px' }}>{entry.name} · {entry.status.toUpperCase()} · exit {entry.exitCode} · {entry.durationMs} ms</div><pre style={{ maxHeight: '250px', overflow: 'auto', whiteSpace: 'pre-wrap', margin: 0, color: 'var(--text-muted)' }}>{entry.output || entry.stderr || 'Command returned no output.'}</pre></div>)}</div> : <div style={{ color: 'var(--text-muted)', border: '1px dashed var(--panel-border)', borderRadius: '8px', padding: '14px' }}>No benchmark or fuzz execution has been run in this session.</div>}
               </div>
             )}
 

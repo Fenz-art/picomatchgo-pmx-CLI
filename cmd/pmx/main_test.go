@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPMXMatch(t *testing.T) {
@@ -214,9 +217,14 @@ func TestPMXAgentInspectJSON(t *testing.T) {
 }
 
 func TestPMXAgentCheckJSON(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "agent", "check", "--json")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "agent", "check", "--json")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatalf("pmx agent check --json exceeded its 90s test budget; the agent gate must not recursively run the full CI suite\n%s", out)
+		}
 		t.Fatalf("pmx agent check --json failed: %v\n%s", err, out)
 	}
 
@@ -229,9 +237,14 @@ func TestPMXAgentCheckJSON(t *testing.T) {
 }
 
 func TestPMXAgentCheckStrictContract(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "agent", "check", "--json")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "agent", "check", "--json")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatalf("pmx agent check --json exceeded its 90s test budget; the agent gate must not recursively run the full CI suite\n%s", out)
+		}
 		t.Fatalf("pmx agent check --json failed: %v\n%s", err, out)
 	}
 
@@ -263,6 +276,26 @@ func TestPMXAgentCheckStrictContract(t *testing.T) {
 	}
 	if _, ok := report["next_actions"].([]interface{}); !ok {
 		t.Fatalf("next_actions should be an array: %T", report["next_actions"])
+	}
+	checks := report["checks"].([]interface{})
+	wantChecks := map[string]bool{"doctor": false, "validate": false, "compat": false, "regression": false}
+	for _, item := range checks {
+		check, ok := item.(map[string]interface{})
+		if !ok {
+			t.Fatalf("check should be an object: %T", item)
+		}
+		name, _ := check["name"].(string)
+		if name == "ci" {
+			t.Fatalf("agent check must not invoke pmx ci; it recursively re-enters the agent test path: %s", out)
+		}
+		if _, known := wantChecks[name]; known {
+			wantChecks[name] = true
+		}
+	}
+	for name, seen := range wantChecks {
+		if !seen {
+			t.Fatalf("missing executed agent check %q: %s", name, out)
+		}
 	}
 }
 
@@ -308,7 +341,7 @@ func TestPMXDoctorDetectsJSProject(t *testing.T) {
 		t.Fatalf("write .eslintrc.json: %v", err)
 	}
 
-	binPath := tempDir + "/pmx-test"
+	binPath := testBinaryPath(tempDir, "pmx-test")
 	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
 	buildCmd.Dir = "."
 	if out, err := buildCmd.CombinedOutput(); err != nil {
@@ -332,13 +365,20 @@ func TestPMXDoctorDetectsJSProject(t *testing.T) {
 
 func buildDoctorBinary(t *testing.T) string {
 	t.Helper()
-	binPath := filepath.Join(t.TempDir(), "pmx-doctor-test")
+	binPath := testBinaryPath(t.TempDir(), "pmx-doctor-test")
 	cmd := exec.Command("go", "build", "-o", binPath, ".")
 	cmd.Dir = filepath.Join("..", "..", "cmd", "pmx")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build pmx binary failed: %v\n%s", err, out)
 	}
 	return binPath
+}
+
+func testBinaryPath(dir, name string) string {
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(dir, name)
 }
 
 func TestPMXDoctorBrokenFixture(t *testing.T) {

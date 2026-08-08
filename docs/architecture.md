@@ -28,7 +28,7 @@ The ADLC commands are:
 - `pmx agent inspect --json`: project snapshot plus diagnostics.
 - `pmx agent check --json`: canonical `{version, result, diagnostics, checks, next_actions}` gate.
 
-Agent checks spawn the current executable and run the same doctor, validation, compatibility, CI, and regression paths that a developer invokes. A failed child command becomes a failed check; the result is not inferred from documentation or UI state.
+Agent checks spawn the current executable and run doctor, validation, compatibility, and regression paths. They deliberately do not invoke `pmx ci`: CI already runs the complete test surface, and nesting it inside an agent-check test would recursively re-enter the gate. A failed child command becomes a failed check; the result is not inferred from documentation or UI state.
 
 `pmx ci --json` executes local format, vet, unit, race, CLI, compatibility, doctor, and regression checks. It is a local validation report, not a GitHub Actions client. Live workflow status and logs belong to Foundry's GitHub integration.
 
