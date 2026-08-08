@@ -35,7 +35,7 @@ jobs:
           args: ./...
 
   vet:
-    needs: lint
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -47,7 +47,7 @@ jobs:
         run: go vet ./...
 
   unit:
-    needs: vet
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -59,7 +59,7 @@ jobs:
         run: go test ./...
 
   race:
-    needs: unit
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -71,7 +71,7 @@ jobs:
         run: go test -race ./...
 
   build:
-    needs: unit
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -121,7 +121,7 @@ jobs:
         run: ./pmx agent check --json | jq .
 
   doctor:
-    needs: unit
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -142,7 +142,7 @@ jobs:
           path: doctor-report.json
 
   compatibility:
-    needs: unit
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -154,7 +154,7 @@ jobs:
         run: go run ./cmd/pmx compat --suite basic
 
   regression:
-    needs: unit
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
