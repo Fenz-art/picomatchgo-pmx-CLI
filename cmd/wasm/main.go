@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"syscall/js"
 
-	picomatch "github.com/debayansamal/port-mortem-picomatch-go"
+	picomatch "github.com/Fenz-art/picomatchgo-pmx-CLI"
 )
 
 func main() {
-	c := make(chan struct{}, 0)
+	c := make(chan struct{})
 
 	js.Global().Set("picomatchScan", js.FuncOf(picomatchScan))
 	js.Global().Set("picomatchParse", js.FuncOf(picomatchParse))
@@ -20,7 +20,7 @@ func main() {
 	<-c
 }
 
-func picomatchScan(this js.Value, args []js.Value) interface{} {
+func picomatchScan(_ js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return "error: missing pattern"
 	}
@@ -30,9 +30,10 @@ func picomatchScan(this js.Value, args []js.Value) interface{} {
 	if len(args) > 1 && !args[1].IsNull() && !args[1].IsUndefined() {
 		optsJSON := args[1].String()
 		var o picomatch.Options
-		if err := json.Unmarshal([]byte(optsJSON), &o); err == nil {
-			opts = &o
+		if err := json.Unmarshal([]byte(optsJSON), &o); err != nil {
+			return "error: invalid options JSON: " + err.Error()
 		}
+		opts = &o
 	}
 
 	state := picomatch.Scan(pattern, opts)
@@ -62,7 +63,7 @@ func picomatchScan(this js.Value, args []js.Value) interface{} {
 	return string(resJSON)
 }
 
-func picomatchParse(this js.Value, args []js.Value) interface{} {
+func picomatchParse(_ js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return "error: missing pattern"
 	}
@@ -72,9 +73,10 @@ func picomatchParse(this js.Value, args []js.Value) interface{} {
 	if len(args) > 1 && !args[1].IsNull() && !args[1].IsUndefined() {
 		optsJSON := args[1].String()
 		var o picomatch.Options
-		if err := json.Unmarshal([]byte(optsJSON), &o); err == nil {
-			opts = &o
+		if err := json.Unmarshal([]byte(optsJSON), &o); err != nil {
+			return "error: invalid options JSON: " + err.Error()
 		}
+		opts = &o
 	}
 
 	state, err := picomatch.Parse(pattern, opts)
@@ -95,7 +97,7 @@ func picomatchParse(this js.Value, args []js.Value) interface{} {
 	return string(resJSON)
 }
 
-func picomatchIsMatch(this js.Value, args []js.Value) interface{} {
+func picomatchIsMatch(_ js.Value, args []js.Value) interface{} {
 	if len(args) < 2 {
 		return false
 	}
@@ -106,9 +108,10 @@ func picomatchIsMatch(this js.Value, args []js.Value) interface{} {
 	if len(args) > 2 && !args[2].IsNull() && !args[2].IsUndefined() {
 		optsJSON := args[2].String()
 		var o picomatch.Options
-		if err := json.Unmarshal([]byte(optsJSON), &o); err == nil {
-			opts = &o
+		if err := json.Unmarshal([]byte(optsJSON), &o); err != nil {
+			return "error: invalid options JSON: " + err.Error()
 		}
+		opts = &o
 	}
 
 	matched, err := picomatch.IsMatch(input, pattern, opts)
@@ -118,7 +121,7 @@ func picomatchIsMatch(this js.Value, args []js.Value) interface{} {
 	return matched
 }
 
-func picomatchCompile(this js.Value, args []js.Value) interface{} {
+func picomatchCompile(_ js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return "error: missing pattern"
 	}
@@ -128,9 +131,10 @@ func picomatchCompile(this js.Value, args []js.Value) interface{} {
 	if len(args) > 1 && !args[1].IsNull() && !args[1].IsUndefined() {
 		optsJSON := args[1].String()
 		var o picomatch.Options
-		if err := json.Unmarshal([]byte(optsJSON), &o); err == nil {
-			opts = &o
+		if err := json.Unmarshal([]byte(optsJSON), &o); err != nil {
+			return "error: invalid options JSON: " + err.Error()
 		}
+		opts = &o
 	}
 
 	re, err := picomatch.MakeRe(pattern, opts)

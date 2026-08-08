@@ -1,7 +1,9 @@
+import { getGitHubRepo, getGitHubToken } from './config.mjs';
+
 export const dynamic = 'force-dynamic';
 
-const REPO = process.env.GITHUB_REPOSITORY || 'debayansamal/port-mortem-picomatch-go';
-const TOKEN = process.env.GITHUB_TOKEN;
+const REPO = getGitHubRepo();
+const TOKEN = getGitHubToken();
 const API_BASE = process.env.GITHUB_API_URL || 'https://api.github.com';
 
 function getHeaders() {
@@ -10,7 +12,9 @@ function getHeaders() {
   };
 
   if (!TOKEN) {
-    throw new Error('Missing GITHUB_TOKEN environment variable. Set it in your deployment or local environment to enable GitHub Actions integration.');
+    throw new Error(
+      'Missing GitHub token environment variable. Set FOUNDRY_GITHUB_TOKEN or GITHUB_TOKEN in your deployment to enable GitHub Actions integration.'
+    );
   }
 
   headers.Authorization = `Bearer ${TOKEN}`;
@@ -32,14 +36,19 @@ async function githubFetch(path, init = {}) {
     throw new Error(`GitHub API ${path} failed with ${response.status}: ${body}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  return JSON.parse(text);
 }
 
 export function resolveWorkflowPath(workflow) {
   if (!workflow || workflow === 'production-ci') {
     return 'ci.yml';
   }
-  return workflow;
+  throw new Error('Unsupported workflow. Only production-ci can be dispatched from Foundry.');
 }
 
 export async function dispatchWorkflow(workflow = 'production-ci', ref = 'main', inputs = {}) {
@@ -51,7 +60,7 @@ export async function dispatchWorkflow(workflow = 'production-ci', ref = 'main',
   });
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const runs = await githubFetch(`/repos/${REPO}/actions/workflows/${workflowPath}/runs?event=workflow_dispatch&per_page=5&branch=main`);
+    const runs = await githubFetch(`/repos/${REPO}/actions/workflows/${workflowPath}/runs?event=workflow_dispatch&per_page=5&branch=${encodeURIComponent(ref)}`);
     if (Array.isArray(runs.workflow_runs) && runs.workflow_runs.length > 0) {
       return runs.workflow_runs[0];
     }
@@ -81,4 +90,17 @@ export async function getArtifacts(runId) {
 
 export async function getJobDetails(jobId) {
   return githubFetch(`/repos/${REPO}/actions/jobs/${jobId}`);
+}
+
+export async function getJobLogs(jobId) {
+  const response = await fetch(`${API_BASE}/repos/${REPO}/actions/jobs/${jobId}/logs`, {
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub job logs failed with ${response.status}: ${body}`);
+  }
+
+  return response.text();
 }

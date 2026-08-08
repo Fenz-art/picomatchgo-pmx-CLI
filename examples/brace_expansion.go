@@ -4,7 +4,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/debayansamal/port-mortem-picomatch-go"
+
+	picomatch "github.com/Fenz-art/picomatchgo-pmx-CLI"
 )
 
 func main() {

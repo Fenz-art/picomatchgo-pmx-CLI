@@ -1,6 +1,6 @@
 # picomatch-go 🚀
 
-[![Go CI](https://github.com/debayansamal/port-mortem-picomatch-go/actions/workflows/ci.yml/badge.svg)](https://github.com/debayansamal/port-mortem-picomatch-go/actions/workflows/ci.yml)
+[![Go CI](https://github.com/Fenz-art/picomatchgo-pmx-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/Fenz-art/picomatchgo-pmx-CLI/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?style=flat-square&logo=go)](https://golang.org)
 [![Next.js](https://img.shields.io/badge/Next.js-15.1.11-000000?style=flat-square&logo=next.js)](https://nextjs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)

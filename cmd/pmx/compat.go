@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	picomatch "github.com/debayansamal/port-mortem-picomatch-go"
+	picomatch "github.com/Fenz-art/picomatchgo-pmx-CLI"
 )
 
 type compatCase struct {

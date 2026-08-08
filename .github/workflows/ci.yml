@@ -8,45 +8,175 @@ on:
   workflow_dispatch:
 
 jobs:
-  quality:
+  format:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.21']
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: '1.21'
           cache: true
-
-      - name: Install golangci-lint
-        run: GOTOOLCHAIN=go1.22.12 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
-
       - name: Format check
         run: gofmt -w $(find . -name '*.go' -not -path './.git/*') && git diff --exit-code
 
+  lint:
+    needs: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
+      - name: Install golangci-lint
+        run: GOTOOLCHAIN=go1.22.12 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
       - name: Lint
         run: $(go env GOPATH)/bin/golangci-lint run ./...
 
+  vet:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
       - name: Vet
         run: go vet ./...
 
+  unit:
+    needs: vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
       - name: Run unit tests
         run: go test ./...
 
+  race:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
       - name: Run race tests
         run: go test -race ./...
 
+  cli:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
+      - name: Build pmx binary
+        run: go build -o pmx ./cmd/pmx
+      - name: Validate CLI commands
+        run: |
+          ./pmx help | grep -E "pmx match|pmx scan|pmx parse|pmx explain|pmx validate|pmx compat|pmx bench|pmx fuzz|pmx ci|pmx doctor"
+          ./pmx match "*.go" "main.go" | grep -E "MATCH|NO MATCH"
+          ./pmx scan "**/parser/*.go" | grep -E "PICOMATCH SCAN|Segments|globstar"
+          ./pmx parse "foo/{bar,baz}/@(a|b).go" | grep -E "PICOMATCH PARSE|BRACE|EXTGLOB"
+          ./pmx explain "**/*.go" --input "src/parser/scan.go" | grep -E "Scanner|Parser|Compiler|Matcher|MATCH"
+          ./pmx validate "*.go" --input "main.go" | grep -E "Validation|PASS|VALID"
+
+  doctor:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
+      - name: Build PMX
+        run: go build -o pmx ./cmd/pmx
+      - name: Run project diagnostics
+        run: ./pmx doctor --ci
+      - name: Generate diagnostic report
+        run: ./pmx doctor --json fixtures/js-ts-fail > doctor-report.json
+      - name: Upload diagnostic report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmx-doctor-report
+          path: doctor-report.json
+
+  compatibility:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
+      - name: Run compatibility suite
+        run: go run ./cmd/pmx compat --suite basic
+
+  regression:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
+      - name: Run regression suite
+        run: go test ./test/...
+
+  fuzz:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
       - name: Run fuzz targets
         run: |
           go test -fuzz=FuzzScan -fuzztime=15s .
           go test -fuzz=FuzzParse -fuzztime=15s .
           go test -fuzz=FuzzIsMatch -fuzztime=15s .
 
+  benchmark:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.21'
+          cache: true
       - name: Run benchmarks
         run: go test -bench=. -run=^$ ./...
+
+  dashboard:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Install dashboard dependencies
+        working-directory: dashboard
+        run: npm ci
+      - name: Lint dashboard
+        working-directory: dashboard
+        run: npm run lint
+      - name: Build dashboard
+        working-directory: dashboard
+        run: npm run build

@@ -1,8 +1,9 @@
 package test
 
 import (
-	"github.com/debayansamal/port-mortem-picomatch-go"
 	"testing"
+
+	picomatch "github.com/Fenz-art/picomatchgo-pmx-CLI"
 )
 
 func TestNegationPatterns(t *testing.T) {

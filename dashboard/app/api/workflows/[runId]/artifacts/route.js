@@ -5,7 +5,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(_request, { params }) {
   try {
-    const artifacts = await getArtifacts(params.runId);
+    const { runId } = await params;
+    const artifacts = await getArtifacts(runId);
     return NextResponse.json({ artifacts: artifacts.artifacts || [] });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

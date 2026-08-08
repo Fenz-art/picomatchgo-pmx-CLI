@@ -2,7 +2,7 @@ package test
 
 import (
 	"testing"
-	//"github.com/debayansamal/port-mortem-picomatch-go"
+	//"github.com/Fenz-art/picomatchgo-pmx-CLI"
 )
 
 func TestExtglobPatterns(t *testing.T) {

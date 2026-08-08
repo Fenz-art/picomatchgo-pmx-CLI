@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(_request, { params }) {
   try {
-    const run = await getRun(params.runId);
-    const jobs = await getJobs(params.runId);
-    const artifacts = await getArtifacts(params.runId);
+    const { runId } = await params;
+    const run = await getRun(runId);
+    const jobs = await getJobs(runId);
+    const artifacts = await getArtifacts(runId);
 
     return NextResponse.json({
       ...run,
