@@ -1,0 +1,34 @@
+﻿go.exe : WORK=C:\Users\KIIT\AppData\Local\Temp\go-build1076941897
+At line:1 char:58
++ ... sktop\pmx'; & 'C:\Program Files\Go\bin\go.exe' build -v -x -o .\bin\p ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (WORK=C:\Users\K...build1076941897 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+cd C:\Users\KIIT\OneDrive\Desktop\pmx
+git status --porcelain
+cd C:\Users\KIIT\OneDrive\Desktop\pmx
+git -c log.showsignature=false log -1 --format=%H:%ct
+cd C:\Users\KIIT\OneDrive\Desktop\pmx; git config extensions.objectformat
+0.066s # cd C:\Users\KIIT\OneDrive\Desktop\pmx; git config 
+extensions.objectformat
+cd C:\Users\KIIT\OneDrive\Desktop\pmx; git -c log.showsignature=false log 
+--no-decorate -n1 '--format=format:%H %ct %D' --end-of-options 
+c09ff8f748b48bef06acd9fc4d1b7f035201de1d --
+0.095s # cd C:\Users\KIIT\OneDrive\Desktop\pmx; git -c log.showsignature=false 
+log --no-decorate -n1 '--format=format:%H %ct %D' --end-of-options 
+c09ff8f748b48bef06acd9fc4d1b7f035201de1d --
+cd C:\Users\KIIT\OneDrive\Desktop\pmx; git for-each-ref --format=%(refname) 
+--merged=c09ff8f748b48bef06acd9fc4d1b7f035201de1d
+0.088s # cd C:\Users\KIIT\OneDrive\Desktop\pmx; git for-each-ref 
+--format=%(refname) --merged=c09ff8f748b48bef06acd9fc4d1b7f035201de1d
+cd C:\Users\KIIT\OneDrive\Desktop\pmx; git -c log.showsignature=false log 
+--no-decorate -n1 '--format=format:%H %ct %D' --end-of-options c09ff8f748b4 --
+0.075s # cd C:\Users\KIIT\OneDrive\Desktop\pmx; git -c log.showsignature=false 
+log --no-decorate -n1 '--format=format:%H %ct %D' --end-of-options 
+c09ff8f748b4 --
+cd C:\Users\KIIT\OneDrive\Desktop\pmx; git cat-file --end-of-options blob 
+c09ff8f748b48bef06acd9fc4d1b7f035201de1d:go.mod
+0.074s # cd C:\Users\KIIT\OneDrive\Desktop\pmx; git cat-file --end-of-options 
+blob c09ff8f748b48bef06acd9fc4d1b7f035201de1d:go.mod

@@ -1,491 +1,54 @@
-Original Picomatch Repository Architecture
-picomatch/
-│
-├── bench/
-│
-├── examples/
-│
-├── lib/
-│
-├── test/
-│
-├── index.js
-├── package.json
-├── README.md
-└── LICENSE
+# PMX Architecture
 
-The important part is:
+PMX is a dependency-free Go implementation of core Picomatch glob behavior, wrapped by an executable developer-validation CLI and a Next.js Foundry dashboard. The system is intentionally layered so each result can be traced to real execution.
 
-index.js
-    |
-    v
-lib/picomatch.js
-    |
-    +----------------+
-    |                |
-    v                v
- lib/parse.js     lib/scan.js
-    |
-    v
- Regex Compiler
-    |
-    v
- Matcher
-1. Root Files
-index.js
-Purpose
+```text
+Pattern/input
+  -> Go runtime: Scan -> Parse -> CompileRe -> IsMatch
+  -> PMX CLI: match/scan/parse/explain/validate/compat/doctor/agent/ci
+  -> JSON contracts: doctor and ADLC reports
+  -> Foundry validation API
+  -> Foundry UI
 
-Public package entry point.
+GitHub Actions workflow -> GitHub API routes -> Foundry workflow UI
+```
 
-Current role:
+## Runtime
 
-module.exports = require('./lib/picomatch');
+The root Go module supplies the public runtime. `scan_impl.go` produces structural pattern metadata; `parse_impl.go` converts supported glob syntax to RE2-compatible regex source; `matcher_impl.go` compiles and evaluates it. `options.go`, `types.go`, `constants.go`, and `utils_impl.go` hold the shared public configuration, data contracts, constants, and helpers. This separation is deliberate: scan, parse, compile, and match remain independently testable.
 
-It exposes the Picomatch API.
+`cmd/wasm` builds the same runtime for the browser. The Foundry Engine Lab loads `public/picomatch.wasm`; failures to load or execute are surfaced in the UI rather than treated as passing execution.
 
-Example:
+## PMX CLI and diagnostics
 
-const picomatch = require("picomatch");
+`cmd/pmx` is the command boundary. Its public commands execute the runtime or named repository checks. `doctor` detects project configuration and emits human or JSON reports. The diagnostic contract includes a code/id, severity, message, relevant file where known, and suggested action.
 
-const matcher = picomatch("*.js");
+The ADLC commands are:
 
-Architecture equivalent:
+- `pmx agent inspect --json`: project snapshot plus diagnostics.
+- `pmx agent check --json`: canonical `{version, result, diagnostics, checks, next_actions}` gate.
 
-User
- |
- |
-index.js
- |
- |
-lib/picomatch.js
-2. lib/
+Agent checks spawn the current executable and run the same doctor, validation, compatibility, CI, and regression paths that a developer invokes. A failed child command becomes a failed check; the result is not inferred from documentation or UI state.
 
-This is the core engine.
+`pmx ci --json` executes local format, vet, unit, race, CLI, compatibility, doctor, and regression checks. It is a local validation report, not a GitHub Actions client. Live workflow status and logs belong to Foundry's GitHub integration.
 
-lib/
-|
-├── picomatch.js
-├── parse.js
-├── scan.js
-├── constants.js
-└── utils.js
+## Foundry
 
-These files contain the actual implementation.
+The Next.js application in `dashboard/` has two execution paths:
 
-lib/picomatch.js
-Main Engine API
+1. `/api/validation` accepts only allowlisted validation IDs and calls `go run ./cmd/pmx` with argument arrays, a fixed repository root, timeout, stdout/stderr capture, exit code, duration, and optional parsed JSON. The UI renders those returned results, including pass, warn, fail, and errors.
+2. `/api/workflows` and nested run/job/artifact/log routes use a server-side GitHub token to dispatch and query GitHub Actions. The browser never receives the token. Missing credentials and GitHub API errors are returned as JSON errors and displayed as failures/unavailable state.
 
-This is the heart of Picomatch.
+The dashboard must not represent local CLI results as a GitHub run, or represent unavailable GitHub data as a pass.
 
-Responsibilities:
+`cmd/dashboard` is retained only as a legacy static UI fixture for its package tests. It carries an explicit demo marker and must not be used as submission evidence or deployed as Foundry.
 
-create matcher functions
-manage options
-call parser
-create regex
-expose APIs
+## CI/CD and deployment
 
-Flow:
+`.github/workflows/ci.yml` runs formatting, linting, vet, unit, race, CLI smoke commands, doctor, compatibility, regression, fuzzing, benchmarks, and dashboard lint/build. It is triggered on `main` push, pull requests to `main`, and `workflow_dispatch`. The doctor report is uploaded as an artifact.
 
-picomatch(pattern)
+The dashboard is deployable as a standard Next.js service. Configure `FOUNDRY_GITHUB_REPOSITORY` as `owner/repo` and provide `FOUNDRY_GITHUB_TOKEN` only to the server environment. The Go toolchain must be available to deployments that use `/api/validation`.
 
-        |
-        v
+## Repository evidence
 
-parse(pattern)
-
-        |
-        v
-
-makeRe()
-
-        |
-        v
-
-RegExp matcher
-
-Example:
-
-const isMatch = picomatch("*.js");
-
-isMatch("app.js");
-// true
-lib/scan.js
-Glob Scanner
-
-Responsible for:
-
-picomatch.scan()
-
-It performs lexical analysis.
-
-Example:
-
-Input:
-
-!src/**/*.ts
-
-Output:
-
-{
- prefix:"!",
- base:"src",
- glob:"**/*.ts",
- isGlob:true,
- negated:true
-}
-
-Architecture:
-
-Raw Pattern
-
-      |
-      v
-
-Scanner
-
-      |
-      v
-
-Pattern Metadata
-
-It does NOT create regex.
-
-lib/parse.js
-Glob Parser
-
-Responsible for converting glob syntax into regex source.
-
-Example:
-
-Input:
-
-*.js
-
-Parser understands:
-
-*
- |
- |
-anything except slash
-
-.js
- |
- |
-literal extension
-
-Output:
-
-^(?:(?!\.)[^/]*?\.js)$
-
-Architecture:
-
-Glob Tokens
-
-      |
-      v
-
-Parser
-
-      |
-      v
-
-Regex Source
-lib/constants.js
-
-Contains shared parser constants.
-
-Examples:
-
-STAR
-QMARK
-SLASH
-DOT
-
-Instead of:
-
-if(char==="*")
-
-everywhere:
-
-Picomatch uses:
-
-constants.STAR
-
-Purpose:
-
-avoid duplicated values
-keep parser readable
-maintain consistency
-lib/utils.js
-
-Helper functions.
-
-Examples:
-
-string utilities
-regex helpers
-path utilities
-validation
-
-Used by:
-
-picomatch.js
-parse.js
-scan.js
-3. examples/
-
-These are API usage examples.
-
-Structure:
-
-examples/
-
-├── extglob.js
-├── extglob-negated.js
-├── makeRe.js
-├── match.js
-├── scan.js
-├── windows.js
-├── option-ignore.js
-├── option-onMatch.js
-├── option-onIgnore.js
-├── option-onResult.js
-└── option-expandRange.js
-
-These demonstrate:
-
-Matching
-match.js
-
-Example:
-
-picomatch.isMatch(
-"foo.js",
-"*.js"
-)
-Regex generation
-makeRe.js
-
-Example:
-
-picomatch.makeRe("*.js")
-
-Output:
-
-/^(?:(?!\.)(?=.)[^/]*?\.js)$/
-Scanner
-scan.js
-
-Example:
-
-picomatch.scan(
-"src/**/*.js"
-)
-Options
-
-Examples:
-
-option-ignore.js
-option-onMatch.js
-option-onIgnore.js
-option-onResult.js
-option-expandRange.js
-
-These should become Go tests/examples.
-
-4. test/
-
-Testing architecture.
-
-The port MUST preserve this philosophy.
-
-Original:
-
-test/
-
-├── matching tests
-├── parsing tests
-├── options tests
-├── edge cases
-
-Port equivalent:
-
-tests/
-
-├── scan_test.go
-├── parse_test.go
-├── match_test.go
-├── options_test.go
-└── regression_test.go
-5. bench/
-
-Performance testing.
-
-Contains:
-
-first-match-minimatch.js
-first-match-picomatch.js
-glob-parent.js
-load-time.js
-
-Purpose:
-
-Compare:
-
-minimatch
-    vs
-picomatch
-
-Measures:
-
-startup time
-regex compilation
-matching speed
-
-Port equivalent:
-
-Go:
-
-bench/
-
-├── match_test.go
-├── compile_test.go
-└── benchmark_test.go
-
-Using:
-
-go test -bench=.
-6. Complete Architecture Mapping
-
-Original:
-
-                 index.js
-                    |
-                    v
-             picomatch.js
-                    |
-        +-----------+-----------+
-        |                       |
-        v                       v
-     scan.js                parse.js
-        |                       |
-        |                       v
-        |                 Regex Generator
-        |
-        v
- Pattern Metadata
-
-                    |
-                    v
-
-              Matcher Function
-
-                    |
-                    v
-
-              User Input Path
-Go Port Architecture
-
-Preserve the same boundaries:
-
-picomatch-go/
-
-│
-├── cmd/
-│
-├── internal/
-│   |
-│   ├── picomatch/
-│   │
-│   ├── scanner/
-│   │     └── scan.go
-│   │
-│   ├── parser/
-│   │     └── parse.go
-│   │
-│   ├── compiler/
-│   │     └── regex.go
-│   │
-│   ├── matcher/
-│   │     └── matcher.go
-│   │
-│   ├── constants/
-│   │     └── constants.go
-│   │
-│   └── utils/
-│         └── utils.go
-│
-├── examples/
-│
-├── bench/
-│
-├── test/
-│
-├── go.mod
-└── README.md
-Important Porting Rule
-
-Do not merge:
-
-scan + parse + compile
-
-into:
-
-Match(pattern,input)
-
-because original Picomatch separates them.
-
-The equivalent should remain:
-
-pattern
-   |
-   v
-Scan()
-   |
-   v
-Parse()
-   |
-   v
-CompileRegex()
-   |
-   v
-Match()
-
-This preserves:
-
-API behavior
-debugging capability
-test mapping
-benchmark comparison
-future compatibility
-
-For Port Mortem, this is the architecture reviewers expect to see: same engine stages, different language implementation.
-
----
-
-## Go Implementation Details
-
-### Core Modules
-
-- `options.go`: Defines the public `Options` configuration and default values.
-- `types.go`: Contains shared structs returned by the scanner, parser, and matcher layers.
-- `scan_impl.go`: Scans the input pattern to identify prefixes, braces, extglobs, and globstars.
-- `parse_impl.go`: Converts glob syntax into regex source and builds the internal parse state.
-- `matcher_impl.go`: Wraps the parser output into a public matcher API via `MakeRe`, `CompileRe`, and `IsMatch`.
-- `utils_impl.go`: Provides helper functions for regex escaping, POSIX slash normalization, basename handling, and output wrapping.
-- `constants.go`: Stores shared constants, character classes, and version information.
-
-### Execution Flow
-
-1. A caller invokes `Scan`, `Parse`, or `IsMatch`.
-2. `Scan` extracts structural metadata from the pattern.
-3. `Parse` translates the glob into regex source.
-4. `CompileRe` and `MakeRe` build a `regexp.Regexp` object.
-5. `IsMatch` evaluates the final pattern against the target input.
-
-### Design Goals
-
-- Preserve behavior from the original `picomatch` implementation.
-- Keep the package dependency-free and idiomatic for Go.
-- Maintain small, composable building blocks for parser, scanner, and matcher concerns.
+Architecture and engineering rules are in `docs/architecture.md` and `AGENTS.md`. The custom PMX Validation Agent and PMX Doctor/ADLC skill are documented in `AGENTS_AND_SKILLS.md` and stored under `.codex/` in this repository.

@@ -215,6 +215,8 @@ func workflowDetailsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"demo":     true,
+		"notice":   "Legacy static dashboard fixture; this response is not live CI evidence. Use dashboard/ for Foundry execution.",
 		"id":       id,
 		"status":   "pass",
 		"duration": "2m31s",
@@ -239,6 +241,8 @@ func workflowLogsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"demo":  true,
+		"notice": "Legacy static dashboard fixture; these are not live CI logs.",
 		"runId": strings.TrimPrefix(r.URL.Path, "/api/logs/"),
 		"lines": []string{
 			"[12:31:22] checkout started",
@@ -259,6 +263,8 @@ func workflowArtifactsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"demo":      true,
+		"notice":    "Legacy static dashboard fixture; these are not live CI artifacts.",
 		"runId": strings.TrimPrefix(r.URL.Path, "/api/artifacts/"),
 		"artifacts": []map[string]interface{}{
 			{"name": "coverage.out", "url": "/artifacts/coverage.out"},

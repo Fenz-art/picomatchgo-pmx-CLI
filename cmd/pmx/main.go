@@ -1131,29 +1131,19 @@ func runCI(args []string) int {
 			fmt.Fprintln(os.Stderr, "usage: pmx ci watch <run-id>")
 			return 2
 		}
-		fmt.Println("GO CI #" + fs.Arg(1))
-		fmt.Println("✓ Format")
-		fmt.Println("✓ Vet")
-		fmt.Println("✓ Build")
-		fmt.Println("✓ Tests")
-		fmt.Println("● Race")
-		fmt.Println("○ Fuzz")
-		fmt.Println("Watching GitHub Actions...")
-		return 0
+		fmt.Fprintf(os.Stderr, "pmx ci watch %s is not available in the local CLI; use the Foundry GitHub Actions API for live workflow status.\n", fs.Arg(1))
+		return 1
 	case "logs":
 		if fs.NArg() < 2 {
 			fmt.Fprintln(os.Stderr, "usage: pmx ci logs <run-id> [job-name]")
 			return 2
 		}
-		fmt.Println("CI LOGS FOR RUN #" + fs.Arg(1))
-		fmt.Println(strings.Repeat("─", 50))
+		job := ""
 		if fs.NArg() >= 3 {
-			fmt.Printf("Job: %s\n", fs.Arg(2))
+			job = " for job " + fs.Arg(2)
 		}
-		fmt.Println("✓ format: PASS")
-		fmt.Println("✓ test: PASS")
-		fmt.Println("✓ build: PASS")
-		return 0
+		fmt.Fprintf(os.Stderr, "pmx ci logs %s%s is not available in the local CLI; use the Foundry GitHub Actions API for live job logs.\n", fs.Arg(1), job)
+		return 1
 	default:
 		if *jsonOutput || *ciMode {
 			return runCIReport(*jsonOutput, *ciMode)

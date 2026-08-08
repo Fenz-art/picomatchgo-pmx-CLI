@@ -310,7 +310,7 @@ func TestPMXDoctorDetectsJSProject(t *testing.T) {
 
 	binPath := tempDir + "/pmx-test"
 	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
-	buildCmd.Dir = "/home/kumar-kushang/Picomatch CLI/cmd/pmx"
+	buildCmd.Dir = "."
 	if out, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("build pmx binary failed: %v\n%s", err, out)
 	}
