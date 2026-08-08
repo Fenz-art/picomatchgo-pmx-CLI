@@ -161,7 +161,7 @@ func parseRepeatedExtglob(pattern string, requireEnd bool) *ParseRepeatedExtglob
 		return nil
 	}
 
-	if !(pattern[0] == '+' || pattern[0] == '*') || pattern[1] != '(' {
+	if (pattern[0] != '+' && pattern[0] != '*') || pattern[1] != '(' {
 		return nil
 	}
 
@@ -382,7 +382,7 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 	}
 
 	if len(input) > max {
-		return ParseState{}, fmt.Errorf("Input length: %d, exceeds maximum allowed length: %d", len(input), max)
+		return ParseState{}, fmt.Errorf("input length: %d, exceeds maximum allowed length: %d", len(input), max)
 	}
 
 	bos := &ParseToken{Type: "bos", Value: "", Output: opts.Prepend}
@@ -668,24 +668,25 @@ func parseLegacy(input string, options *Options) (ParseState, error) {
 			}
 			char := input[loc[4]:loc[5]]
 
-			if char == `\\` {
+			switch char {
+			case `\\`:
 				backslashes = true
 				builder.WriteString(input[loc[0]:loc[1]])
-			} else if char == "?" {
+			case "?":
 				if esc != "" {
 					builder.WriteString(esc + `\?`)
 				} else {
 					builder.WriteString(qmarkNoDot)
 				}
-			} else if char == "." {
+			case ".":
 				builder.WriteString(DOT_LITERAL)
-			} else if char == "*" {
+			case "*":
 				if esc != "" {
 					builder.WriteString(esc + "*")
 				} else {
 					builder.WriteString(star)
 				}
-			} else {
+			default:
 				if esc != "" {
 					builder.WriteString(input[loc[0]:loc[1]])
 				} else {
@@ -1317,7 +1318,7 @@ func parseFastpathsLegacy(input string, options *Options) (string, error) {
 		max = opts.MaxLength
 	}
 	if len(input) > max {
-		return "", fmt.Errorf("Input length: %d, exceeds maximum allowed length: %d", len(input), max)
+		return "", fmt.Errorf("input length: %d, exceeds maximum allowed length: %d", len(input), max)
 	}
 
 	if r, ok := Replacements[input]; ok {
