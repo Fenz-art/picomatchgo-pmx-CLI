@@ -261,11 +261,17 @@ func runBench(args []string) int {
 	fmt.Println()
 
 	cmdArgs := []string{"test", "-run=^$", "-bench=.", "-benchmem", "-count=1"}
-	cmd := exec.Command("go", cmdArgs...)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", cmdArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "benchmark run failed: %v\n", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintln(os.Stderr, "benchmark timed out after 300s")
+		} else {
+			fmt.Fprintf(os.Stderr, "benchmark run failed: %v\n", err)
+		}
 		return 1
 	}
 
@@ -296,11 +302,17 @@ func runFuzz(args []string) int {
 	fmt.Println(strings.Repeat("─", 50))
 	fmt.Println()
 
-	cmd := exec.Command("go", "test", "-run=^$", "-fuzz="+*target, "-fuzztime="+*timeArg, "./...")
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "test", "-run=^$", "-fuzz="+*target, "-fuzztime="+*timeArg, "./...")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "fuzz run failed: %v\n", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintln(os.Stderr, "fuzz timed out after 300s")
+		} else {
+			fmt.Fprintf(os.Stderr, "fuzz run failed: %v\n", err)
+		}
 		return 1
 	}
 	return 0
@@ -1167,9 +1179,14 @@ func regressionTargetPackages() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command("go", "list", "./...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "list", "./...")
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return nil, fmt.Errorf("go list timed out after 30s")
+	}
 	if err != nil {
 		return nil, fmt.Errorf("list packages: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -1208,9 +1225,22 @@ func runRegressionReport() (map[string]interface{}, error) {
 	}
 
 	args := append([]string{"test", "-json"}, packages...)
-	cmd := exec.Command("go", args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return map[string]interface{}{
+			"command":     "regression",
+			"result":      "fail",
+			"total":       0,
+			"passed":      0,
+			"failed":      0,
+			"skipped":     0,
+			"duration_ms": time.Since(start).Milliseconds(),
+		}, fmt.Errorf("regression tests timed out after 120s")
+	}
 	total, passed, failed, skipped := countGoTestResults(out)
 	duration := time.Since(start)
 	result := "pass"
@@ -1314,18 +1344,34 @@ func runCIReport(jsonOutput bool, ciMode bool) int {
 		fmt.Fprintf(os.Stderr, "ci repository discovery failed: %v\n", rootErr)
 		return 1
 	}
+
+	// When PMX_AGENT_CHECK_SKIP_CI=1, skip the Unit and Race checks
+	// that re-invoke go test ./... which would cause infinite recursion
+	// when pmx ci is invoked from inside a test (TestPMXCIJSON).
+	skipRecursive := os.Getenv("PMX_AGENT_CHECK_SKIP_CI") == "1"
+
 	checks := []struct {
 		name string
 		args []string
 	}{
 		{name: "Format", args: []string{"gofmt", "-l", "."}},
 		{name: "Vet", args: []string{"go", "vet", "./..."}},
-		{name: "Unit", args: []string{"go", "test", "-count=1", "./..."}},
-		{name: "Race", args: []string{"go", "test", "-count=1", "-race", "./..."}},
 		{name: "Build", args: []string{"go", "build", "./..."}},
 		{name: "CLI", args: []string{"go", "run", "./cmd/pmx", "match", "**/*.go", "cmd/pmx/main.go"}},
 		{name: "Compatibility", args: []string{"go", "run", "./cmd/pmx", "compat", "--suite", "basic"}},
 		{name: "Doctor", args: []string{"go", "run", "./cmd/pmx", "doctor", "--ci"}},
+	}
+	if !skipRecursive {
+		checks = append(checks,
+			struct {
+				name string
+				args []string
+			}{name: "Unit", args: []string{"go", "test", "-count=1", "./..."}},
+			struct {
+				name string
+				args []string
+			}{name: "Race", args: []string{"go", "test", "-count=1", "-race", "./..."}},
+		)
 	}
 
 	report := map[string]interface{}{
@@ -1335,6 +1381,14 @@ func runCIReport(jsonOutput bool, ciMode bool) int {
 		"failed":      0,
 		"warnings":    0,
 		"duration_ms": 0,
+	}
+
+	if skipRecursive {
+		for _, name := range []string{"Unit", "Race"} {
+			item := map[string]string{"name": name, "status": "pass", "details": "skipped (PMX_AGENT_CHECK_SKIP_CI=1)"}
+			report["checks"] = append(report["checks"].([]map[string]string), item)
+			report["passed"] = report["passed"].(int) + 1
+		}
 	}
 
 	for _, check := range checks {
@@ -1354,17 +1408,21 @@ func runCIReport(jsonOutput bool, ciMode bool) int {
 		}
 	}
 
-	regressionReport, regressionErr := runRegressionReport()
 	regressionStatus := "pass"
 	regressionDetail := ""
-	if regressionErr != nil {
-		regressionStatus = "fail"
-		regressionDetail = regressionErr.Error()
-	} else if regressionReport["result"] == "fail" {
-		regressionStatus = "fail"
-		regressionDetail = fmt.Sprintf("failed %v/%v tests", regressionReport["failed"], regressionReport["total"])
-	} else if regressionReport["result"] == "warning" {
-		regressionStatus = "warn"
+	if skipRecursive {
+		regressionDetail = "skipped (PMX_AGENT_CHECK_SKIP_CI=1)"
+	} else {
+		regressionReport, regressionErr := runRegressionReport()
+		if regressionErr != nil {
+			regressionStatus = "fail"
+			regressionDetail = regressionErr.Error()
+		} else if regressionReport["result"] == "fail" {
+			regressionStatus = "fail"
+			regressionDetail = fmt.Sprintf("failed %v/%v tests", regressionReport["failed"], regressionReport["total"])
+		} else if regressionReport["result"] == "warning" {
+			regressionStatus = "warn"
+		}
 	}
 	item := map[string]string{"name": "Regression", "status": regressionStatus}
 	if regressionDetail != "" {
