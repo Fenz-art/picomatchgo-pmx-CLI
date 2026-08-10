@@ -187,6 +187,25 @@ func TestPMXDoctorCI(t *testing.T) {
 	}
 }
 
+func TestPMXFuzzJSON(t *testing.T) {
+	cmd := exec.Command("go", "run", ".", "fuzz", "--json", "--target", "FuzzScan", "--time", "1s")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pmx fuzz --json failed: %v\n%s", err, out)
+	}
+
+	var report map[string]interface{}
+	if err := json.Unmarshal(out, &report); err != nil {
+		t.Fatalf("invalid JSON output from pmx fuzz --json: %v\n%s", err, out)
+	}
+	if got := report["target"]; got != "FuzzScan" {
+		t.Fatalf("target = %v; want FuzzScan", got)
+	}
+	if got := report["result"]; got != "pass" && got != "warn" && got != "fail" {
+		t.Fatalf("result = %v; want pass|warn|fail", got)
+	}
+}
+
 func TestPMXAgentInspectJSON(t *testing.T) {
 	cmd := exec.Command("go", "run", ".", "agent", "inspect", "--json")
 	out, err := cmd.CombinedOutput()

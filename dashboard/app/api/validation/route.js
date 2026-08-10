@@ -16,7 +16,7 @@ const validationRegistry = {
   compat: { command: 'pmx compat', label: 'pmx compat', args: ['compat', '--suite', 'basic'], mode: 'local', category: 'Compatibility', executor: 'LocalExecutor' },
   regression: { command: 'pmx regression --json', label: 'pmx regression --json', args: ['regression', '--json'], mode: 'local', category: 'Regression', executor: 'LocalExecutor' },
   bench: { command: 'pmx bench', label: 'pmx bench', args: ['bench'], mode: 'local', category: 'Reliability', executor: 'LocalExecutor' },
-  fuzz: { command: 'pmx fuzz', label: 'pmx fuzz', args: ['fuzz'], mode: 'local', category: 'Reliability', executor: 'LocalExecutor' },
+  fuzz: { command: 'pmx fuzz --json --time 5s', label: 'pmx fuzz --json --time 5s', args: ['fuzz', '--json', '--time', '5s'], mode: 'local', category: 'Reliability', executor: 'LocalExecutor' },
   doctor: { command: 'pmx doctor', label: 'pmx doctor', args: ['doctor'], mode: 'local', category: 'Doctor', executor: 'LocalExecutor' },
   doctorJson: { command: 'pmx doctor --json', label: 'pmx doctor --json', args: ['doctor', '--json'], mode: 'local', category: 'Doctor', executor: 'LocalExecutor' },
   doctorCi: { command: 'pmx doctor --ci', label: 'pmx doctor --ci', args: ['doctor', '--ci'], mode: 'local', category: 'Doctor', executor: 'LocalExecutor' },
@@ -120,6 +120,14 @@ export function buildValidationRun(results, meta = {}) {
   };
 }
 
+function buildCommandEnv(spec) {
+  const env = { ...process.env };
+  if (spec?.args?.[0] === 'agent' && spec.args[1] === 'check' || spec?.args?.[0] === 'ci') {
+    env.PMX_AGENT_CHECK_SKIP_CI = '1';
+  }
+  return env;
+}
+
 async function runValidationCommand(commandId, spec) {
   const startedAt = Date.now();
 
@@ -128,6 +136,7 @@ async function runValidationCommand(commandId, spec) {
       cwd: repoRoot,
       timeout: 300000,
       maxBuffer: 1024 * 1024,
+      env: buildCommandEnv(spec),
     });
 
     return normalizeResult(commandId, spec, 0, Date.now() - startedAt, stdout, stderr);

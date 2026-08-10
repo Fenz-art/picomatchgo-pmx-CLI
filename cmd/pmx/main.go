@@ -284,6 +284,7 @@ func runBench(args []string) int {
 
 func runFuzz(args []string) int {
 	fs := flag.NewFlagSet("fuzz", flag.ContinueOnError)
+	jsonOutput := fs.Bool("json", false, "emit JSON output")
 	target := fs.String("target", "FuzzScan", "fuzz target name")
 	timeArg := fs.String("time", "15s", "fuzz duration")
 	fs.SetOutput(os.Stdout)
@@ -298,16 +299,60 @@ func runFuzz(args []string) int {
 		return 2
 	}
 
-	fmt.Println("PICOMATCH FUZZ CAMPAIGN")
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
+	if !*jsonOutput {
+		fmt.Println("PICOMATCH FUZZ CAMPAIGN")
+		fmt.Println(strings.Repeat("─", 50))
+		fmt.Println()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "test", "-run=^$", "-fuzz="+*target, "-fuzztime="+*timeArg, "./...")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	cmd := exec.CommandContext(ctx, "go", "test", ".", "-run=^$", "-fuzz="+*target, "-fuzztime="+*timeArg)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	err := cmd.Run()
+	output := strings.TrimSpace(out.String())
+	if *jsonOutput {
+		result := "pass"
+		exitCode := 0
+		if err != nil {
+			result = "fail"
+			exitCode = 1
+			if ctx.Err() == context.DeadlineExceeded {
+				result = "fail"
+				exitCode = 1
+			}
+		}
+		payload := map[string]interface{}{
+			"target":    *target,
+			"time":      *timeArg,
+			"result":    result,
+			"exit_code": exitCode,
+			"output":    output,
+		}
+		data, marshalErr := json.MarshalIndent(payload, "", "  ")
+		if marshalErr != nil {
+			fmt.Fprintf(os.Stderr, "fuzz json failed: %v\n", marshalErr)
+			return 1
+		}
+		fmt.Println(string(data))
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Fprintln(os.Stderr, "fuzz timed out after 300s")
+			} else {
+				fmt.Fprintf(os.Stderr, "fuzz run failed: %v\n", err)
+			}
+			return 1
+		}
+		return 0
+	}
+
+	if output != "" {
+		fmt.Print(output)
+	}
+	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			fmt.Fprintln(os.Stderr, "fuzz timed out after 300s")
 		} else {
