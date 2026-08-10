@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPMXMatch(t *testing.T) {
@@ -214,8 +216,15 @@ func TestPMXAgentInspectJSON(t *testing.T) {
 }
 
 func TestPMXAgentCheckJSON(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "agent", "check", "--json")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "agent", "check", "--json")
+	cmd.Env = append(os.Environ(), "PMX_AGENT_CHECK_SKIP_CI=1")
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatal("pmx agent check --json timed out after 60s")
+	}
 	if err != nil {
 		t.Fatalf("pmx agent check --json failed: %v\n%s", err, out)
 	}
@@ -229,8 +238,15 @@ func TestPMXAgentCheckJSON(t *testing.T) {
 }
 
 func TestPMXAgentCheckStrictContract(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "agent", "check", "--json")
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "agent", "check", "--json")
+	cmd.Env = append(os.Environ(), "PMX_AGENT_CHECK_SKIP_CI=1")
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatal("pmx agent check --json timed out after 60s")
+	}
 	if err != nil {
 		t.Fatalf("pmx agent check --json failed: %v\n%s", err, out)
 	}
@@ -441,8 +457,15 @@ func TestPMXRegression(t *testing.T) {
 }
 
 func TestPMXCIJSON(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "ci", "--json")
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "ci", "--json")
+	cmd.Env = append(os.Environ(), "PMX_AGENT_CHECK_SKIP_CI=1")
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatal("pmx ci --json timed out after 120s")
+	}
 	if err != nil {
 		t.Fatalf("pmx ci --json failed: %v\n%s", err, out)
 	}
@@ -460,8 +483,14 @@ func TestPMXCIJSON(t *testing.T) {
 }
 
 func TestPMXCIUsage(t *testing.T) {
-	cmd := exec.Command("go", "run", ".", "ci")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "ci")
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatal("pmx ci timed out after 30s")
+	}
 	if err != nil {
 		t.Fatalf("pmx ci failed: %v\n%s", err, out)
 	}

@@ -49,6 +49,7 @@ jobs:
   unit:
     needs: format
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -61,6 +62,7 @@ jobs:
   race:
     needs: format
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -107,6 +109,7 @@ jobs:
   agent:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -118,6 +121,8 @@ jobs:
       - name: Run agent inspection
         run: ./pmx agent inspect --json | jq .
       - name: Run agent check
+        env:
+          PMX_AGENT_CHECK_SKIP_CI: "1"
         run: ./pmx agent check --json | jq .
 
   doctor:

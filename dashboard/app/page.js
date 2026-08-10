@@ -178,7 +178,7 @@ export default function Home() {
     } finally {
       setValidationLoading(false);
     }
-  };
+  }, [validationMatrix, parseJsonResponse]);
 
   const validationMap = Object.fromEntries(validationResults.map((item) => [item.id, item]));
   const doctorReport = validationMap.doctorJson?.parsed || null;
@@ -590,7 +590,6 @@ export default function Home() {
           </button>
         </div>
       ) : (
-        {/* Main Engineering Dashboard Dashboard */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, zIndex: 10, padding: '24px' }}>
           
           {/* Header */}
