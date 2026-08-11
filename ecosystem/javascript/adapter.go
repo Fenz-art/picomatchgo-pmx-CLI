@@ -73,9 +73,7 @@ func getToolVersionExec(name string) string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		for _, prefix := range []string{"v", "Version: ", "TypeScript "} {
-			if strings.HasPrefix(line, prefix) {
-				line = strings.TrimPrefix(line, prefix)
-			}
+			line = strings.TrimPrefix(line, prefix)
 		}
 		if len(line) > 0 && line[0] >= '0' && line[0] <= '9' && strings.Contains(line, ".") {
 			return line
