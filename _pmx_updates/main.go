@@ -766,28 +766,39 @@ func isDoctorMode(value string) bool {
 
 func buildDoctorReport() doctorReport {
 	// Use the adapter architecture for ecosystem detection and validation.
+	// Doctor consumes adapters — it doesn't hard-code checks per ecosystem.
 	dir, _ := os.Getwd()
 	adapters := ecosystem.AllAdapters()
 	detection := ecosystem.DetectEcosystems(dir, adapters)
 
-	project := doctorProject{Name: filepathBase(".")}
+	// Build project info from the primary adapter
+	project := doctorProject{
+		Name: filepathBase("."),
+	}
+
 	if len(detection.Ecosystems) > 0 {
+		// Get detailed inspection from the primary adapter
 		primaryAdapter := findAdapter(detection.Primary, adapters)
 		if primaryAdapter != nil {
 			info := primaryAdapter.Inspect(dir)
 			project.Ecosystem = info.Ecosystem
 			project.PackageManager = info.PackageManager
-			project.TypeScript = strings.Contains(info.Ecosystem, "typescript")
+			project.TypeScript = info.Language == "typescript" || strings.Contains(info.Ecosystem, "typescript")
 			project.Framework = info.Framework
 		}
 	}
+
 	if project.Ecosystem == "" {
 		project.Ecosystem = "unknown"
 	}
 
 	report := doctorReport{Version: "1", Project: project, Diagnostics: []doctorDiagnostic{}}
-	for _, d := range ecosystem.ValidateAll(dir, adapters) {
-		report.Diagnostics = append(report.Diagnostics, doctorDiagnostic{
+
+	// Run all validation layers through the adapter interface
+	adapterDiags := ecosystem.ValidateAll(dir, adapters)
+	for _, d := range adapterDiags {
+		// Convert core.Diagnostic to doctorDiagnostic
+		dd := doctorDiagnostic{
 			ID:         d.ID,
 			Severity:   d.Severity,
 			Category:   d.Category,
@@ -796,7 +807,8 @@ func buildDoctorReport() doctorReport {
 			Message:    d.Message,
 			Evidence:   d.Evidence,
 			Suggestion: d.Suggestion,
-		})
+		}
+		report.Diagnostics = append(report.Diagnostics, dd)
 		switch d.Severity {
 		case "pass":
 			report.Summary.Pass++
@@ -806,125 +818,17 @@ func buildDoctorReport() doctorReport {
 			report.Summary.Fail++
 		}
 	}
+
 	return report
 }
 
 func findAdapter(name string, adapters []core.EcosystemAdapter) core.EcosystemAdapter {
-	for _, adapter := range adapters {
-		if adapter.Name() == name {
-			return adapter
+	for _, a := range adapters {
+		if a.Name() == name {
+			return a
 		}
 	}
 	return nil
-}
-
-func detectProjectEcosystem() string {
-	switch {
-	case fileExists("package.json") || fileExists("pnpm-lock.yaml") || fileExists("yarn.lock") || fileExists("package-lock.json") || fileExists("bun.lock") || fileExists("bun.lockb") || fileExists("tsconfig.json") || fileExists("eslint.config.js") || fileExists(".eslintrc.json") || fileExists(".eslintrc"):
-		return "javascript"
-	case fileExists("go.mod"):
-		return "go"
-	case fileExists("Cargo.toml"):
-		return "rust"
-	case fileExists("pyproject.toml"):
-		return "python"
-	default:
-		return "unknown"
-	}
-}
-
-func detectPackageManager() string {
-	if fileExists("package.json") {
-		pkg, err := os.ReadFile("package.json")
-		if err == nil {
-			var manifest map[string]interface{}
-			if err := json.Unmarshal(pkg, &manifest); err == nil {
-				if pm, ok := manifest["packageManager"].(string); ok && pm != "" {
-					if idx := strings.Index(pm, "@"); idx > 0 {
-						return pm[:idx]
-					}
-					return pm
-				}
-			}
-		}
-	}
-
-	switch {
-	case fileExists("pnpm-lock.yaml"):
-		return "pnpm"
-	case fileExists("yarn.lock"):
-		return "yarn"
-	case fileExists("package-lock.json"):
-		return "npm"
-	case fileExists("bun.lock") || fileExists("bun.lockb"):
-		return "bun"
-	case fileExists("package.json"):
-		return "npm"
-	case fileExists("go.mod"):
-		return "go"
-	case fileExists("Cargo.toml"):
-		return "cargo"
-	case fileExists("pyproject.toml"):
-		return "pip"
-	default:
-		return "unknown"
-	}
-}
-
-func detectFramework() string {
-	switch {
-	case fileExists("next.config.js") || fileExists("next.config.mjs") || fileExists("next.config.ts"):
-		return "next"
-	case fileExists("vite.config.js") || fileExists("vite.config.ts") || fileExists("vite.config.mjs"):
-		return "vite"
-	case fileExists("astro.config.mjs") || fileExists("astro.config.js") || fileExists("astro.config.ts"):
-		return "astro"
-	default:
-		return ""
-	}
-}
-
-func tsConfigStrictEnabled() bool {
-	path := "tsconfig.json"
-	if !fileExists(path) {
-		return false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	text := string(data)
-	return strings.Contains(text, "\"strict\": true") || strings.Contains(text, "\"strict\":\n    true") || strings.Contains(text, "\"strict\":\n\ttrue")
-}
-
-func hasLegacyESLintConfig() bool {
-	return fileExists(".eslintrc") || fileExists(".eslintrc.json") || fileExists(".eslintrc.js") || fileExists(".eslintrc.cjs")
-}
-
-func detectLegacyESLintFile() string {
-	switch {
-	case fileExists(".eslintrc.json"):
-		return ".eslintrc.json"
-	case fileExists(".eslintrc.js"):
-		return ".eslintrc.js"
-	case fileExists(".eslintrc.cjs"):
-		return ".eslintrc.cjs"
-	case fileExists(".eslintrc"):
-		return ".eslintrc"
-	default:
-		return "eslint.config.js"
-	}
-}
-
-func multiplePackageManagersDetected() bool {
-	lockfiles := []string{"pnpm-lock.yaml", "yarn.lock", "package-lock.json", "bun.lock", "bun.lockb"}
-	count := 0
-	for _, path := range lockfiles {
-		if fileExists(path) {
-			count++
-		}
-	}
-	return count > 1
 }
 
 func printDoctorSummary(report doctorReport) {
