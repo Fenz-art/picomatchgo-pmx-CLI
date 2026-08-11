@@ -28,21 +28,19 @@ func (a *Adapter) Inspect(dir string) core.EcosystemInfo {
 		Ecosystem:      "rust",
 		PackageManager: "cargo",
 		Language:       "rust",
-		Name:           "rust",
-		Root:           core.NormalizeDir(dir),
-		Manifest:       manifest,
-		Details:        map[string]string{"manifest": manifest},
+		Detected:       []string{},
+		Dependencies:   core.DependencySummary{},
 	}
-	if data, err := os.ReadFile(manifest); err == nil {
-		if name := firstMatch(string(data), `(?m)^name\s*=\s*"([^"]+)"`); name != "" {
-			info.Details["package_name"] = name
+	if _, err := os.Stat(manifest); err == nil {
+		info.Dependencies.Manifest = "Cargo.toml"
+		info.Detected = append(info.Detected, "Cargo.toml")
+		if data, err := os.ReadFile(manifest); err == nil {
+			if name := firstMatch(string(data), `(?m)^name\s*=\s*"([^"]+)"`); name != "" {
+				// record package name in a lightweight toolchain detail
+				info.ConfigFiles = append(info.ConfigFiles, core.ConfigFile{Path: "Cargo.toml", Exists: true})
+				_ = name
+			}
 		}
-		if edition := firstMatch(string(data), `(?m)^edition\s*=\s*"([^"]+)"`); edition != "" {
-			info.Details["edition"] = edition
-		}
-	}
-	if files, err := os.ReadDir(dir); err == nil {
-		info.FileCount = len(files)
 	}
 	return info
 }
