@@ -17,7 +17,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Format check
-        run: gofmt -w $(find . -name '*.go' -not -path './.git/*') && git diff --exit-code
+        run: |
+          git ls-files -z -- '*.go' | xargs -0 gofmt -w
+          git diff --exit-code
 
   lint:
     needs: format
