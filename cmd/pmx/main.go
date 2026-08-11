@@ -904,6 +904,10 @@ func printDoctorDepsReport(report doctorReport, ciMode bool) {
 	fmt.Println("  ✓ package metadata detected when present")
 	fmt.Println("  ✓ module graph is represented by the active project root")
 	fmt.Println("  ⚠ dependency intelligence is intentionally narrow in the MVP")
+	// Surface a brief summary derived from the provided report to avoid unused
+	// parameter diagnostics and give quick feedback in the deps view.
+	fmt.Println()
+	fmt.Printf("Summary: PASS %d  WARN %d  FAIL %d\n", report.Summary.Pass, report.Summary.Warn, report.Summary.Fail)
 	if ciMode {
 		fmt.Println("  CI: PASS")
 	}
@@ -917,6 +921,9 @@ func printDoctorToolchainReport(report doctorReport, ciMode bool) {
 	printToolStatus("Node", toolExists("node"))
 	printToolStatus("Cargo", toolExists("cargo"))
 	printToolStatus("Python", toolExists("python3"))
+	// Include a concise summary to surface the report usage and help CI viewers.
+	fmt.Println()
+	fmt.Printf("Summary: PASS %d  WARN %d  FAIL %d\n", report.Summary.Pass, report.Summary.Warn, report.Summary.Fail)
 	if ciMode {
 		fmt.Println("  CI: PASS")
 	}
