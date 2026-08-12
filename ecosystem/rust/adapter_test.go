@@ -20,17 +20,14 @@ func TestRustAdapterDetectAndInspect(t *testing.T) {
 	}
 
 	info := adapter.Inspect(dir)
-	if info.Name != "rust" {
-		t.Fatalf("expected name rust, got %q", info.Name)
+	if info.Ecosystem != "rust" {
+		t.Fatalf("expected ecosystem rust, got %q", info.Ecosystem)
 	}
-	if info.Root == "" {
-		t.Fatal("expected non-empty root")
+	if info.Dependencies.Manifest != "Cargo.toml" {
+		t.Fatalf("expected Dependencies.Manifest to be Cargo.toml, got %q", info.Dependencies.Manifest)
 	}
-	if info.FileCount == 0 {
-		t.Fatal("expected file count > 0")
-	}
-	if info.Details["manifest"] == "" {
-		t.Fatal("expected manifest detail")
+	if len(info.Detected) == 0 {
+		t.Fatalf("expected Detected to be non-empty")
 	}
 
 	var _ core.EcosystemAdapter = adapter

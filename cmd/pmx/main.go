@@ -818,114 +818,9 @@ func findAdapter(name string, adapters []core.EcosystemAdapter) core.EcosystemAd
 	return nil
 }
 
-func detectProjectEcosystem() string {
-	switch {
-	case fileExists("package.json") || fileExists("pnpm-lock.yaml") || fileExists("yarn.lock") || fileExists("package-lock.json") || fileExists("bun.lock") || fileExists("bun.lockb") || fileExists("tsconfig.json") || fileExists("eslint.config.js") || fileExists(".eslintrc.json") || fileExists(".eslintrc"):
-		return "javascript"
-	case fileExists("go.mod"):
-		return "go"
-	case fileExists("Cargo.toml"):
-		return "rust"
-	case fileExists("pyproject.toml"):
-		return "python"
-	default:
-		return "unknown"
-	}
-}
-
-func detectPackageManager() string {
-	if fileExists("package.json") {
-		pkg, err := os.ReadFile("package.json")
-		if err == nil {
-			var manifest map[string]interface{}
-			if err := json.Unmarshal(pkg, &manifest); err == nil {
-				if pm, ok := manifest["packageManager"].(string); ok && pm != "" {
-					if idx := strings.Index(pm, "@"); idx > 0 {
-						return pm[:idx]
-					}
-					return pm
-				}
-			}
-		}
-	}
-
-	switch {
-	case fileExists("pnpm-lock.yaml"):
-		return "pnpm"
-	case fileExists("yarn.lock"):
-		return "yarn"
-	case fileExists("package-lock.json"):
-		return "npm"
-	case fileExists("bun.lock") || fileExists("bun.lockb"):
-		return "bun"
-	case fileExists("package.json"):
-		return "npm"
-	case fileExists("go.mod"):
-		return "go"
-	case fileExists("Cargo.toml"):
-		return "cargo"
-	case fileExists("pyproject.toml"):
-		return "pip"
-	default:
-		return "unknown"
-	}
-}
-
-func detectFramework() string {
-	switch {
-	case fileExists("next.config.js") || fileExists("next.config.mjs") || fileExists("next.config.ts"):
-		return "next"
-	case fileExists("vite.config.js") || fileExists("vite.config.ts") || fileExists("vite.config.mjs"):
-		return "vite"
-	case fileExists("astro.config.mjs") || fileExists("astro.config.js") || fileExists("astro.config.ts"):
-		return "astro"
-	default:
-		return ""
-	}
-}
-
-func tsConfigStrictEnabled() bool {
-	path := "tsconfig.json"
-	if !fileExists(path) {
-		return false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	text := string(data)
-	return strings.Contains(text, "\"strict\": true") || strings.Contains(text, "\"strict\":\n    true") || strings.Contains(text, "\"strict\":\n\ttrue")
-}
-
-func hasLegacyESLintConfig() bool {
-	return fileExists(".eslintrc") || fileExists(".eslintrc.json") || fileExists(".eslintrc.js") || fileExists(".eslintrc.cjs")
-}
-
-func detectLegacyESLintFile() string {
-	switch {
-	case fileExists(".eslintrc.json"):
-		return ".eslintrc.json"
-	case fileExists(".eslintrc.js"):
-		return ".eslintrc.js"
-	case fileExists(".eslintrc.cjs"):
-		return ".eslintrc.cjs"
-	case fileExists(".eslintrc"):
-		return ".eslintrc"
-	default:
-		return "eslint.config.js"
-	}
-}
-
-func multiplePackageManagersDetected() bool {
-	lockfiles := []string{"pnpm-lock.yaml", "yarn.lock", "package-lock.json", "bun.lock", "bun.lockb"}
-	count := 0
-	for _, path := range lockfiles {
-		if fileExists(path) {
-			count++
-		}
-	}
-	return count > 1
-}
+// Note: project/JS detection logic is now provided by the ecosystem adapters.
+// The helper functions previously here were duplicates of adapter logic and
+// have been removed to avoid unused-function diagnostics.
 
 func printDoctorSummary(report doctorReport) {
 	fmt.Println("PMX DOCTOR")
@@ -1009,6 +904,10 @@ func printDoctorDepsReport(report doctorReport, ciMode bool) {
 	fmt.Println("  ✓ package metadata detected when present")
 	fmt.Println("  ✓ module graph is represented by the active project root")
 	fmt.Println("  ⚠ dependency intelligence is intentionally narrow in the MVP")
+	// Surface a brief summary derived from the provided report to avoid unused
+	// parameter diagnostics and give quick feedback in the deps view.
+	fmt.Println()
+	fmt.Printf("Summary: PASS %d  WARN %d  FAIL %d\n", report.Summary.Pass, report.Summary.Warn, report.Summary.Fail)
 	if ciMode {
 		fmt.Println("  CI: PASS")
 	}
@@ -1022,6 +921,9 @@ func printDoctorToolchainReport(report doctorReport, ciMode bool) {
 	printToolStatus("Node", toolExists("node"))
 	printToolStatus("Cargo", toolExists("cargo"))
 	printToolStatus("Python", toolExists("python3"))
+	// Include a concise summary to surface the report usage and help CI viewers.
+	fmt.Println()
+	fmt.Printf("Summary: PASS %d  WARN %d  FAIL %d\n", report.Summary.Pass, report.Summary.Warn, report.Summary.Fail)
 	if ciMode {
 		fmt.Println("  CI: PASS")
 	}
@@ -1253,6 +1155,9 @@ func runRegressionReport() (map[string]interface{}, error) {
 	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "runRegressionReport failed cmd=%v dir=%s err=%v output=%s\n", cmd.Args, cmd.Dir, err, strings.TrimSpace(string(out)))
+	}
 	if ctx.Err() == context.DeadlineExceeded {
 		return map[string]interface{}{
 			"command":     "regression",
