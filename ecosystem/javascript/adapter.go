@@ -55,11 +55,6 @@ func (j *JSAdapter) ValidateEnvironment(dir string) []core.Diagnostic {
 	var diags []core.Diagnostic
 	// For CI/tests we report missing tools as warnings rather than hard fails.
 	// Map diagnostics to the contracted IDs expected by tests and the dashboard.
-	pm := detectPackageManager(dir)
-	if pm == "" {
-		pm = "npm"
-	}
-
 	// Package manager availability -> PMX-PKG-001 (warn)
 	// Report based on presence of package manifest or lockfile to keep CI
 	// diagnostics deterministic (avoid depending on PATH lookups).
