@@ -1155,6 +1155,9 @@ func runRegressionReport() (map[string]interface{}, error) {
 	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "runRegressionReport failed cmd=%v dir=%s err=%v output=%s\n", cmd.Args, cmd.Dir, err, strings.TrimSpace(string(out)))
+	}
 	if ctx.Err() == context.DeadlineExceeded {
 		return map[string]interface{}{
 			"command":     "regression",
